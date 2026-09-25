@@ -1,0 +1,81 @@
+# ══════════════════════════════════════════════════════════════
+#  聚珍 · 仓库忽略规则
+#
+#  策略：juzhen-dock/ 采用「白名单」——默认忽略全部，再逐个放行源码。
+#  原因：该目录下累积了 280+ 个一次性调试产物（DOM 转储、截图、
+#  补丁备份），逐个写排除规则既易漏又易腐，白名单更可靠。
+# ══════════════════════════════════════════════════════════════
+
+# ── 工作记忆：含本机绝对路径与个人配置说明，不入公开仓库 ──
+.workbuddy/
+
+# ── 依赖与打包产物 ──
+node_modules/
+dist/
+dist-pack/
+dist-verify/
+out/
+
+# ══════════════════ juzhen-dock：白名单 ══════════════════
+/juzhen-dock/*
+
+# 构建系统：8 个片段 + 构建脚本
+!/juzhen-dock/_build.js
+!/juzhen-dock/_js_a.txt
+!/juzhen-dock/_js_b.txt
+!/juzhen-dock/_js_c.txt
+!/juzhen-dock/_css.txt
+!/juzhen-dock/_term.txt
+!/juzhen-dock/_tools.txt
+!/juzhen-dock/_icons.txt
+!/juzhen-dock/_illus.txt
+
+# 构建产物（浏览器原型：单文件、可直接双击打开）
+!/juzhen-dock/prototype.html
+
+# 验证与探针
+!/juzhen-dock/_probe.js
+!/juzhen-dock/_probe*.js
+!/juzhen-dock/_zonetest.js
+!/juzhen-dock/_zonerun.js
+!/juzhen-dock/_psraw.js
+!/juzhen-dock/_inkcheck.js
+
+# 模块级单元测试（纯 Node，不依赖 Electron）
+!/juzhen-dock/_aitest.js
+!/juzhen-dock/_llmtest.js
+!/juzhen-dock/_kbtest.js
+!/juzhen-dock/_termtest.js
+!/juzhen-dock/_pmvtest.js
+!/juzhen-dock/_tdtest.js
+!/juzhen-dock/_tdtest2.js
+!/juzhen-dock/_tdtest3.js
+!/juzhen-dock/_tdtest4.js
+!/juzhen-dock/_actcheck.js
+!/juzhen-dock/_fsguard.js
+!/juzhen-dock/_fstest.js
+!/juzhen-dock/_fstest2.js
+
+# 桌面端
+!/juzhen-dock/desktop/
+
+# ── 桌面端内部排除 ──
+/juzhen-dock/desktop/node_modules/
+/juzhen-dock/desktop/dist/
+/juzhen-dock/desktop/dist-pack/
+/juzhen-dock/desktop/dist-verify/
+/juzhen-dock/desktop/out/
+/juzhen-dock/desktop/_*.log
+/juzhen-dock/desktop/_*.txt
+/juzhen-dock/desktop/_ptyspike.js
+
+# ══════════════════ 设计参考 ══════════════════
+# _ref/agentic-island 是独立仓库（github.com/suzike/agentic-island），
+# 以 git submodule 挂载，见 .gitmodules。
+# 克隆本仓库后若要拿到参考代码：git submodule update --init --recursive
+
+# ══════════════════ 通用噪声 ══════════════════
+*.log
+Thumbs.db
+.DS_Store
+desktop.ini

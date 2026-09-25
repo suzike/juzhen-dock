@@ -1,0 +1,246 @@
+/* ================================================================
+   三、页头场景插画
+   ----------------------------------------------------------------
+   每个板块一张绘本风格的小场景，作为页头主视觉（图文并茂）。
+   用 var(--cb)/var(--cb-soft) 取当前板块色，因此换主题会自动跟着换。
+   ================================================================ */
+const A = {
+  svg: (inner, vb) => '<svg viewBox="' + (vb || '0 0 252 126') + '" fill="none" xmlns="http://www.w3.org/2000/svg">' + inner + '</svg>',
+  /* 三个文件夹的通用画法 */
+  folder3: (x, top, h, c1) =>
+      '<rect x="' + x + '" y="' + (top + 4) + '" width="' + (h * .52) + '" height="10" rx="5" fill="' + c1 + '"/>'
+    + '<rect x="' + x + '" y="' + (top + 9) + '" width="' + h + '" height="' + (h + 6) + '" rx="9" fill="' + c1 + '"/>'
+    + '<rect x="' + (x + 7) + '" y="' + (top + 22) + '" width="' + (h - 14) + '" height="' + (h - 12) + '" rx="7" fill="#fff" opacity=".62"/>'
+};
+
+const ILLUS = {
+/* ---------- 文件夹：书架 + 彩色档案夹 + 绿植 ---------- */
+folders: A.svg(
+    '<circle cx="34" cy="30" r="15" fill="var(--a3)" opacity=".55"/>'
+  + '<path d="M196 30c0-9 7-16 15-16s15 7 15 16z" fill="#fff" opacity=".8"/>'
+  + '<rect x="188" y="30" width="46" height="9" rx="4.5" fill="#fff" opacity=".8"/>'
+  + A.folder3(48, 44, 44, 'var(--cb)')
+  + A.folder3(104, 36, 44, 'var(--a3)')
+  + A.folder3(160, 50, 44, 'var(--a2)')
+  + '<rect x="30" y="101" width="192" height="11" rx="5.5" fill="var(--ink-4)" opacity=".35"/>'
+  + '<rect x="220" y="72" width="8" height="29" rx="4" fill="var(--ink-4)" opacity=".3"/>'
+  + '<path d="M224 74c-11-2-17-9-17-18 10 0 17 7 17 18z" fill="var(--cb)" opacity=".55"/>'
+  + '<path d="M224 74c11-3 16-11 15-20-10 1-16 8-15 20z" fill="var(--cb)" opacity=".3"/>'
+  + '<circle cx="70" cy="22" r="3.4" fill="var(--a2)" opacity=".5"/>'
+  + '<circle cx="96" cy="14" r="2.4" fill="var(--cb)" opacity=".45"/>'),
+
+/* ---------- 网址：漂浮的浏览器窗口 + 地球 + 气球 ---------- */
+links: A.svg(
+    '<path d="M40 32c0-10 8-18 18-18s18 8 18 18z" fill="#fff" opacity=".85"/>'
+  + '<rect x="34" y="32" width="50" height="10" rx="5" fill="#fff" opacity=".85"/>'
+  + '<ellipse cx="206" cy="66" rx="17" ry="21" fill="var(--a3)" opacity=".55"/>'
+  + '<path d="M206 87c0 8 4 12 8 16" stroke="var(--ink-4)" stroke-width="1.8" opacity=".5" stroke-linecap="round"/>'
+  + '<rect x="60" y="40" width="104" height="72" rx="12" fill="#fff"/>'
+  + '<rect x="60" y="40" width="104" height="20" rx="12" fill="var(--cb)" opacity=".85"/>'
+  + '<rect x="60" y="52" width="104" height="8" fill="var(--cb)" opacity=".85"/>'
+  + '<circle cx="72" cy="50" r="3.2" fill="#fff" opacity=".95"/>'
+  + '<circle cx="83" cy="50" r="3.2" fill="#fff" opacity=".7"/>'
+  + '<circle cx="94" cy="50" r="3.2" fill="#fff" opacity=".5"/>'
+  + '<rect x="72" y="70" width="80" height="10" rx="5" fill="var(--cb)" opacity=".28"/>'
+  + '<rect x="72" y="86" width="56" height="10" rx="5" fill="var(--cb)" opacity=".18"/>'
+  + '<rect x="128" y="80" width="66" height="30" rx="9" fill="var(--a2)" opacity=".32"/>'
+  + '<circle cx="42" cy="86" r="17" fill="var(--cb)" opacity=".26"/>'
+  + '<path d="M25 86h34v7H25z" fill="var(--cb)" opacity=".8"/>'
+  + '<path d="M42 69c-5 0-9 7.6-9 17s4 17 9 17 9-7.6 9-17-4-17-9-17zm0 3.6c2.6 0 4.8 6 4.8 13.4S44.6 100 42 100s-4.8-6-4.8-13.4S39.4 72.6 42 72.6z" fill="var(--cb)" fill-rule="evenodd" opacity=".8"/>'),
+
+/* ---------- 收藏箱：堆叠的卡片 + 星 ---------- */
+clip: A.svg(
+    '<rect x="66" y="44" width="86" height="62" rx="12" fill="var(--a3)" opacity=".38" transform="rotate(-7 109 75)"/>'
+  + '<rect x="80" y="40" width="86" height="62" rx="12" fill="var(--cb)" opacity=".45" transform="rotate(4 123 71)"/>'
+  + '<rect x="72" y="42" width="96" height="72" rx="13" fill="#fff"/>'
+  + '<rect x="72" y="42" width="96" height="72" rx="13" stroke="var(--cb)" stroke-width="2.6" opacity=".55" fill="none"/>'
+  + '<rect x="86" y="60" width="52" height="11" rx="5.5" fill="var(--cb)" opacity=".85"/>'
+  + '<rect x="86" y="79" width="68" height="8" rx="4" fill="var(--cb)" opacity=".3"/>'
+  + '<rect x="86" y="93" width="44" height="8" rx="4" fill="var(--cb)" opacity=".18"/>'
+  + '<path d="M196 26l6.4 13 14.3 2-10.3 10 2.4 14.2L196 58.5l-12.8 6.7 2.4-14.2-10.3-10 14.3-2z" fill="var(--a3)"/>'
+  + '<circle cx="48" cy="36" r="12" fill="var(--a2)" opacity=".35"/>'
+  + '<circle cx="212" cy="96" r="6" fill="var(--cb)" opacity=".4"/>'
+  + '<circle cx="40" cy="96" r="4" fill="var(--a3)" opacity=".5"/>'),
+
+/* ---------- 暂存：藤篮里的纸张 ---------- */
+staging: A.svg(
+    '<rect x="74" y="30" width="58" height="70" rx="7" fill="var(--a2)" opacity=".45" transform="rotate(-9 103 65)"/>'
+  + '<rect x="92" y="26" width="58" height="72" rx="7" fill="var(--cb)" opacity=".55" transform="rotate(7 121 62)"/>'
+  + '<rect x="82" y="32" width="62" height="72" rx="7" fill="#fff" transform="rotate(-2 113 68)"/>'
+  + '<rect x="94" y="48" width="38" height="7" rx="3.5" fill="var(--cb)" opacity=".6" transform="rotate(-2 113 68)"/>'
+  + '<rect x="94" y="62" width="30" height="7" rx="3.5" fill="var(--cb)" opacity=".3" transform="rotate(-2 113 68)"/>'
+  + '<path d="M52 74h124l-13 34a11 11 0 0 1-10.2 7H75.2a11 11 0 0 1-10.2-7z" fill="var(--cb)" opacity=".82"/>'
+  + '<path d="M56 88h116" stroke="#fff" stroke-width="3" opacity=".45" stroke-linecap="round"/>'
+  + '<path d="M64 102h100" stroke="#fff" stroke-width="3" opacity=".3" stroke-linecap="round"/>'
+  + '<rect x="52" y="68" width="124" height="13" rx="6.5" fill="var(--cb)"/>'
+  + '<circle cx="42" cy="34" r="11" fill="var(--a3)" opacity=".5"/>'
+  + '<circle cx="212" cy="44" r="8" fill="var(--a2)" opacity=".4"/>'
+  + '<circle cx="206" cy="102" r="5" fill="var(--a3)" opacity=".55"/>'),
+
+/* ---------- 剪切板：剪贴板 + 便签 + 图钉 ---------- */
+board: A.svg(
+    '<rect x="70" y="34" width="62" height="62" rx="8" fill="var(--a3)" opacity=".48" transform="rotate(-8 101 65)"/>'
+  + '<rect x="84" y="28" width="58" height="58" rx="8" fill="var(--a2)" opacity=".45" transform="rotate(6 113 57)"/>'
+  + '<rect x="84" y="30" width="86" height="88" rx="13" fill="#fff"/>'
+  + '<rect x="84" y="30" width="86" height="88" rx="13" stroke="var(--cb)" stroke-width="2.8" opacity=".6" fill="none"/>'
+  + '<rect x="108" y="20" width="38" height="19" rx="8" fill="var(--cb)"/>'
+  + '<rect x="100" y="54" width="54" height="9" rx="4.5" fill="var(--cb)" opacity=".75"/>'
+  + '<rect x="100" y="72" width="42" height="9" rx="4.5" fill="var(--cb)" opacity=".35"/>'
+  + '<rect x="100" y="90" width="50" height="9" rx="4.5" fill="var(--cb)" opacity=".22"/>'
+  + '<path d="M192 34a9 9 0 0 1 9 9c0 6-5 11-9 15-4-4-9-9-9-15a9 9 0 0 1 9-9z" fill="var(--a3)"/>'
+  + '<circle cx="192" cy="43" r="3.4" fill="#fff"/>'
+  + '<circle cx="52" cy="46" r="9" fill="var(--cb)" opacity=".3"/>'
+  + '<circle cx="48" cy="98" r="6" fill="var(--a2)" opacity=".4"/>'
+  + '<circle cx="208" cy="102" r="7" fill="var(--cb)" opacity=".32"/>'),
+
+/* ---------- 设置：调色盘 + 画笔 + 色块 ---------- */
+settings: A.svg(
+    '<path d="M118 16c-30 0-52 22-52 48s22 48 52 48c6.8 0 12-4.9 12-11 0-3-1.2-5.6-3-7.4-1.8-2-3-4.4-3-7.1 0-6 5-11 11.3-11h9c16.6 0 30-12.8 30-29C174 26 149.6 16 118 16z" fill="var(--cb)" opacity=".42"/>'
+  + '<circle cx="94" cy="60" r="10" fill="var(--a3)"/>'
+  + '<circle cx="114" cy="38" r="10" fill="var(--a2)"/>'
+  + '<circle cx="146" cy="42" r="10" fill="#fff"/>'
+  + '<circle cx="154" cy="72" r="10" fill="var(--cb)"/>'
+  + '<path d="M200 20l16 16-38 38-16-16z" fill="var(--a3)"/>'
+  + '<path d="M162 58l16 16-10 10a9 9 0 0 1-12.7 0l-3.3-3.3a9 9 0 0 1 0-12.7z" fill="var(--cb)" opacity=".75"/>'
+  + '<circle cx="48" cy="30" r="9" fill="var(--a2)" opacity=".45"/>'
+  + '<circle cx="42" cy="92" r="7" fill="var(--a3)" opacity=".5"/>'
+  + '<circle cx="216" cy="98" r="6" fill="var(--cb)" opacity=".4"/>'),
+
+/* ---------- 今日：日历 + 勾选清单 + 朝阳 ---------- */
+today: A.svg(
+    '<circle cx="204" cy="34" r="16" fill="var(--a3)" opacity=".6"/>'
+  + '<path d="M204 10v-6M204 64v4M186 34h-6M228 34h4M192 16l-4-4M216 16l4-4" stroke="var(--a3)" stroke-width="2.4" stroke-linecap="round" opacity=".7"/>'
+  + '<rect x="56" y="26" width="94" height="90" rx="13" fill="#fff"/>'
+  + '<rect x="56" y="26" width="94" height="90" rx="13" stroke="var(--cb)" stroke-width="2.6" opacity=".5" fill="none"/>'
+  + '<rect x="56" y="26" width="94" height="22" rx="13" fill="var(--cb)"/>'
+  + '<rect x="56" y="40" width="94" height="8" fill="var(--cb)"/>'
+  + '<rect x="74" y="20" width="6" height="16" rx="3" fill="var(--ink-4)" opacity=".6"/>'
+  + '<rect x="126" y="20" width="6" height="16" rx="3" fill="var(--ink-4)" opacity=".6"/>'
+  + '<rect x="70" y="62" width="12" height="12" rx="3.5" fill="var(--cb)"/>'
+  + '<path d="M72.5 68l2.6 2.8 4.6-5" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>'
+  + '<rect x="90" y="65" width="46" height="7" rx="3.5" fill="var(--cb)" opacity=".35"/>'
+  + '<rect x="70" y="82" width="12" height="12" rx="3.5" fill="var(--ink-4)" opacity=".28"/>'
+  + '<rect x="90" y="85" width="36" height="7" rx="3.5" fill="var(--cb)" opacity=".2"/>'
+  + '<circle cx="42" cy="92" r="9" fill="var(--a2)" opacity=".4"/>'
+  + '<circle cx="216" cy="98" r="6" fill="var(--cb)" opacity=".35"/>'),
+
+/* ---------- 场景：三块舞台 + 切换箭头 ---------- */
+scene: A.svg(
+    '<rect x="30" y="30" width="62" height="70" rx="12" fill="var(--a2)" opacity=".4" transform="rotate(-8 61 65)"/>'
+  + '<rect x="46" y="26" width="62" height="70" rx="12" fill="var(--a3)" opacity=".45" transform="rotate(5 77 61)"/>'
+  + '<rect x="62" y="30" width="70" height="72" rx="13" fill="#fff"/>'
+  + '<rect x="62" y="30" width="70" height="72" rx="13" stroke="var(--cb)" stroke-width="2.6" opacity=".55" fill="none"/>'
+  + '<rect x="76" y="46" width="42" height="9" rx="4.5" fill="var(--cb)" opacity=".8"/>'
+  + '<rect x="76" y="63" width="30" height="7" rx="3.5" fill="var(--cb)" opacity=".3"/>'
+  + '<rect x="76" y="77" width="36" height="7" rx="3.5" fill="var(--cb)" opacity=".18"/>'
+  + '<path d="M152 66h26" stroke="var(--cb)" stroke-width="3.4" stroke-linecap="round" opacity=".8"/>'
+  + '<path d="M172 58l10 8-10 8z" fill="var(--cb)" opacity=".8"/>'
+  + '<rect x="190" y="42" width="46" height="48" rx="11" fill="var(--cb)" opacity=".8"/>'
+  + '<rect x="200" y="56" width="26" height="7" rx="3.5" fill="#fff" opacity=".9"/>'
+  + '<rect x="200" y="70" width="18" height="6" rx="3" fill="#fff" opacity=".55"/>'
+  + '<circle cx="44" cy="102" r="8" fill="var(--a3)" opacity=".5"/>'
+  + '<circle cx="214" cy="104" r="5" fill="var(--cb)" opacity=".4"/>'),
+
+/* ---------- 片段：代码窗 + 花括号 + 复制 ---------- */
+snip: A.svg(
+    '<rect x="40" y="30" width="112" height="76" rx="12" fill="#fff"/>'
+  + '<rect x="40" y="30" width="112" height="76" rx="12" stroke="var(--cb)" stroke-width="2.6" opacity=".5" fill="none"/>'
+  + '<rect x="40" y="30" width="112" height="18" rx="12" fill="var(--cb)" opacity=".85"/>'
+  + '<rect x="40" y="42" width="112" height="6" fill="var(--cb)" opacity=".85"/>'
+  + '<circle cx="52" cy="39" r="2.8" fill="#fff" opacity=".95"/>'
+  + '<circle cx="62" cy="39" r="2.8" fill="#fff" opacity=".65"/>'
+  + '<path d="M62 62c-6 0-8-4-8-8s3-8 8-8 6 3 6 6" stroke="var(--cb)" stroke-width="2.6" stroke-linecap="round" fill="none" opacity=".85"/>'
+  + '<path d="M78 46c6 0 8 4 8 8s-3 8-8 8-6-3-6-6" stroke="var(--cb)" stroke-width="2.6" stroke-linecap="round" fill="none" opacity=".85"/>'
+  + '<rect x="94" y="66" width="42" height="7" rx="3.5" fill="var(--cb)" opacity=".3"/>'
+  + '<rect x="94" y="80" width="28" height="7" rx="3.5" fill="var(--cb)" opacity=".18"/>'
+  + '<rect x="168" y="34" width="42" height="46" rx="10" fill="var(--cb)" opacity=".22"/>'
+  + '<rect x="176" y="44" width="42" height="46" rx="10" fill="#fff" stroke="var(--cb)" stroke-width="2.4" opacity=".9" fill="none"/>'
+  + '<rect x="186" y="58" width="22" height="6" rx="3" fill="var(--cb)" opacity=".55"/>'
+  + '<rect x="186" y="70" width="14" height="6" rx="3" fill="var(--cb)" opacity=".3"/>'
+  + '<circle cx="34" cy="96" r="8" fill="var(--a2)" opacity=".45"/>'
+  + '<circle cx="222" cy="98" r="6" fill="var(--a3)" opacity=".55"/>'),
+
+/* ---------- 换算：计算器 + 温标 + 雪花火焰 ---------- */
+calc: A.svg(
+    '<rect x="58" y="18" width="88" height="98" rx="14" fill="#fff"/>'
+  + '<rect x="58" y="18" width="88" height="98" rx="14" stroke="var(--cb)" stroke-width="2.6" opacity=".5" fill="none"/>'
+  + '<rect x="70" y="30" width="64" height="26" rx="8" fill="var(--cb)" opacity=".82"/>'
+  + '<rect x="78" y="39" width="34" height="8" rx="4" fill="#fff" opacity=".9"/>'
+  + '<circle cx="82" cy="74" r="7" fill="var(--cb)" opacity=".28"/>'
+  + '<circle cx="102" cy="74" r="7" fill="var(--cb)" opacity=".28"/>'
+  + '<circle cx="122" cy="74" r="7" fill="var(--cb)" opacity=".28"/>'
+  + '<circle cx="82" cy="94" r="7" fill="var(--cb)" opacity=".28"/>'
+  + '<circle cx="102" cy="94" r="7" fill="var(--a3)" opacity=".7"/>'
+  + '<circle cx="122" cy="94" r="7" fill="var(--cb)" opacity=".28"/>'
+  + '<path d="M186 44l5.4 11 12 1.7-8.7 8.5 2 12-10.7-5.6-10.7 5.6 2-12-8.7-8.5 12-1.7z" fill="var(--a3)"/>'
+  + '<path d="M36 60c0-6 4-10 9-10s9 4 9 10c0 5-9 14-9 14s-9-9-9-14z" fill="var(--a2)" opacity=".55"/>'
+  + '<path d="M40 62v8M36 66h8" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".9"/>'
+  + '<circle cx="216" cy="92" r="7" fill="var(--a2)" opacity=".45"/>'
+  + '<circle cx="38" cy="100" r="5" fill="var(--a3)" opacity=".6"/>'),
+
+/* ---------- 速记：便签 + 铅笔 ---------- */
+note: A.svg(
+    '<rect x="74" y="42" width="88" height="66" rx="7" fill="var(--a2)" opacity=".42" transform="rotate(-7 118 75)"/>'
+  + '<rect x="86" y="38" width="88" height="66" rx="7" fill="var(--a3)" opacity=".5" transform="rotate(6 130 71)"/>'
+  + '<rect x="78" y="34" width="92" height="72" rx="8" fill="#fff"/>'
+  + '<rect x="78" y="34" width="92" height="72" rx="8" stroke="var(--cb)" stroke-width="2.6" opacity=".5" fill="none"/>'
+  + '<rect x="92" y="50" width="52" height="9" rx="4.5" fill="var(--cb)" opacity=".75"/>'
+  + '<rect x="92" y="68" width="64" height="7" rx="3.5" fill="var(--cb)" opacity=".3"/>'
+  + '<rect x="92" y="82" width="44" height="7" rx="3.5" fill="var(--cb)" opacity=".18"/>'
+  + '<path d="M196 26l22 22-9 9-22-22z" fill="var(--cb)" opacity=".8"/>'
+  + '<path d="M218 48l-8 8-7-3 3-7z" fill="var(--a3)"/>'
+  + '<path d="M183 39l8 8" stroke="var(--ink-4)" stroke-width="2" stroke-linecap="round" opacity=".5"/>'
+  + '<circle cx="46" cy="40" r="10" fill="var(--a3)" opacity=".5"/>'
+  + '<circle cx="44" cy="98" r="6" fill="var(--cb)" opacity=".35"/>'
+  + '<circle cx="212" cy="102" r="5" fill="var(--a2)" opacity=".5"/>'),
+
+/* ---------- 贴图：照片 + 图钉钉在板上 ---------- */
+shot: A.svg(
+    '<rect x="44" y="26" width="126" height="84" rx="12" fill="var(--ink-4)" opacity=".16"/>'
+  + '<path d="M62 98l30-34 22 24 16-16 22 26z" fill="var(--a2)" opacity=".45"/>'
+  + '<circle cx="176" cy="46" r="8" fill="var(--a3)" opacity=".8"/>'
+  + '<rect x="56" y="34" width="102" height="68" rx="10" fill="#fff"/>'
+  + '<rect x="56" y="34" width="102" height="68" rx="10" stroke="var(--cb)" stroke-width="2.6" opacity=".55" fill="none"/>'
+  + '<path d="M64 92l24-28 18 20 13-13 19 21z" fill="var(--cb)" opacity=".35"/>'
+  + '<circle cx="150" cy="50" r="7" fill="var(--a3)"/>'
+  + '<circle cx="107" cy="30" r="11" fill="var(--cb)"/>'
+  + '<circle cx="107" cy="30" r="4.4" fill="#fff" opacity=".9"/>'
+  + '<path d="M107 30v-8" stroke="var(--cb)" stroke-width="2.6" stroke-linecap="round" opacity=".7"/>'
+  + '<circle cx="36" cy="96" r="8" fill="var(--a3)" opacity=".5"/>'
+  + '<circle cx="218" cy="98" r="6" fill="var(--cb)" opacity=".38"/>'),
+
+/* ---------- AI 速问：机器人 + 对话气泡 + 星光 ---------- */
+ask: A.svg(
+    '<path d="M46 34h84a12 12 0 0 1 12 12v30a12 12 0 0 1-12 12H70l-16 14V88h-8a12 12 0 0 1-12-12V46a12 12 0 0 1 12-12z" fill="var(--cb)" opacity=".22"/>'
+  + '<path d="M50 44h84a10 10 0 0 1 10 10v28a10 10 0 0 1-10 10H72l-14 12V92h-8a10 10 0 0 1-10-10V54a10 10 0 0 1 10-10z" fill="#fff"/>'
+  + '<rect x="64" y="60" width="42" height="7" rx="3.5" fill="var(--cb)" opacity=".6"/>'
+  + '<rect x="64" y="74" width="28" height="7" rx="3.5" fill="var(--cb)" opacity=".28"/>'
+  + '<rect x="164" y="30" width="52" height="56" rx="16" fill="var(--cb)" opacity=".85"/>'
+  + '<rect x="172" y="20" width="36" height="18" rx="8" fill="var(--cb)"/>'
+  + '<circle cx="181" cy="29" r="3.4" fill="#fff"/>'
+  + '<circle cx="200" cy="29" r="3.4" fill="#fff"/>'
+  + '<path d="M172 21v-5M208 21v-5" stroke="var(--cb)" stroke-width="2.4" stroke-linecap="round"/>'
+  + '<path d="M172 16a6 6 0 0 1 6-6h24a6 6 0 0 1 6 6" stroke="var(--cb)" stroke-width="2.4" stroke-linecap="round" fill="none"/>'
+  + '<rect x="176" y="54" width="28" height="7" rx="3.5" fill="#fff" opacity=".95"/>'
+  + '<rect x="176" y="66" width="18" height="7" rx="3.5" fill="#fff" opacity=".6"/>'
+  + '<path d="M226 76l3.6 7.4 8 1.1-5.8 5.6 1.4 8-7.2-3.8-7.2 3.8 1.4-8-5.8-5.6 8-1.1z" fill="var(--a3)"/>'
+  + '<circle cx="36" cy="86" r="7" fill="var(--a2)" opacity=".45"/>'
+  + '<circle cx="42" cy="30" r="5" fill="var(--a3)" opacity=".6"/>'),
+
+/* ---------- 终端：一扇开着提示符的窗口 ---------- */
+term: A.svg(
+    '<rect x="34" y="20" width="184" height="88" rx="14" fill="var(--cb)" opacity=".20"/>'
+  + '<rect x="42" y="28" width="176" height="72" rx="11" fill="#fff"/>'
+  + '<path d="M42 39a11 11 0 0 1 11-11h154a11 11 0 0 1 11 11v3H42z" fill="var(--cb)" opacity=".16"/>'
+  + '<circle cx="54" cy="35" r="3.2" fill="var(--cb)" opacity=".55"/>'
+  + '<circle cx="65" cy="35" r="3.2" fill="var(--cb)" opacity=".35"/>'
+  + '<circle cx="76" cy="35" r="3.2" fill="var(--cb)" opacity=".22"/>'
+  + '<path d="M56 56l9 8-9 8" stroke="var(--cb)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>'
+  + '<rect x="72" y="61" width="42" height="6" rx="3" fill="var(--cb)" opacity=".62"/>'
+  + '<rect x="56" y="79" width="86" height="6" rx="3" fill="var(--cb)" opacity=".26"/>'
+  + '<rect x="56" y="89" width="58" height="6" rx="3" fill="var(--cb)" opacity=".18"/>'
+  + '<rect x="150" y="79" width="9" height="15" rx="2.5" fill="var(--a3)"/>'
+  + '<path d="M228 26l3.4 7 7.6 1-5.5 5.3 1.3 7.6-6.8-3.6-6.8 3.6 1.3-7.6-5.5-5.3 7.6-1z" fill="var(--a3)"/>'
+  + '<circle cx="30" cy="96" r="7" fill="var(--a2)" opacity=".45"/>'
+  + '<circle cx="38" cy="30" r="5" fill="var(--a3)" opacity=".6"/>')
+};

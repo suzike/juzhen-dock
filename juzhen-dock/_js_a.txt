@@ -1,0 +1,247 @@
+/* ================================================================
+   一、配色 —— 绘本风（低刺激版）
+   ----------------------------------------------------------------
+   上一版色轮均值 S=64% / L=53%，27 色里有 8 色落在「S≥72% 且 L 46–74%」
+   的高刺激区（全是橘黄暖色），叠加桌面 4 团 alpha .95 的彩色光斑与
+   玻璃层 saturate(190%)，整体偏亮刺眼。
+   本版做了三层收敛：
+     1. 色轮改用累进压缩 S' = S·(1−S/250) —— 饱和的压得多（87%→57%），
+        本来就克制的色几乎不动（37%→31%），均值 S 降到约 46%；
+        明度只压亮不提暗：L' = L>52 ? L−(L−52)·0.6 : L
+     2. 光斑改为「只降饱和、保持高明度」的柔色（S 压到 38%、L 保底 82%），
+        配合 alpha 降到 .44/.36 —— 光斑是背景，不该抢前景
+     3. 玻璃层 saturate 由 190% 降到 132%，不再放大透上来的颜色
+   保留多彩与色相区分度，只把「刺激度」降下来。
+   ================================================================ */
+/* 三套主题的差异只有三样：纸面、墨色、主色。
+   hues 仍留 9 个位置（历史形状，索引被别处引用），但界面只取 hues[0]；
+   sub 里原来写的是"橘黄蓝绿"这种多色描述 —— 它显示在主题选择器上，
+   描述一套已经不用的配色，属于当面说错话，已改。                   */
+/* 一套主题 = 一套纸面 + 一套墨色 + **一个**主色。
+   hues 里只需要写主色那一个值（位置 0），后 8 位由下面的色阶自动补齐 ——
+   见紧跟在 tint() 后面的 HUES_PAD 注释。
+
+   后 6 套取自公开流传的中国传统色色卡（中科院科技情报编委会《色谱》1957
+   那套在网上的通行版本）。色值在多个色卡站点上互相印证过：
+     靛青 #177CB0 · 胭脂 #9D2933 · 绛紫 #8C4356
+     竹青 #789262 · 秋香色 #D9B611 · 墨色 #50616D
+   同一色名在不同版本里会有一两档深浅的差别（例如「天青」既有 #228FBD
+   也有 #76BECC，「靛青」既有 #177CB0 也有 #224B8F），这里只取能对上号的。
+
+   ⚠ 纸面与墨阶是**按主色推导出来的**，不是传统色本身。所以 sub 只写
+   「浅蓝纸」这种如实描述，不把推导出来的色冒充成某个传统色名。 */
+const THEMES = [
+  { id:'sunny', name:'奶油阳光', sub:'暖奶油纸 · 陶橘主色',
+    paper:'#FBF5EA', paper2:'#FFFFFF', paper3:'#F7EDDC', side:'#FAF2E4',
+    ink1:'#2B2119', ink2:'#5A4C3C', ink3:'#796956', ink4:'#A99A85',
+    hues:['#c86b46'],
+    glow:['#e4d6c3','#d0dee5','#dae6dc','#eddee5'] },
+
+  { id:'mint',  name:'薄荷清晨', sub:'冷薄荷纸 · 松绿主色',
+    paper:'#F1F9F5', paper2:'#FFFFFF', paper3:'#E2F1EA', side:'#E9F6F0',
+    ink1:'#16241F', ink2:'#3D544B', ink3:'#597167', ink4:'#93AAA0',
+    hues:['#27887f'],
+    glow:['#cee1dd','#d6e1ea','#dfe9df','#e7e4f0'] },
+
+  { id:'berry', name:'莓果花园', sub:'粉莓纸 · 莓红主色',
+    paper:'#FBF2F5', paper2:'#FFFFFF', paper3:'#F8E2EA', side:'#FCEDF2',
+    ink1:'#2A1A20', ink2:'#5B3F4A', ink3:'#7C616A', ink4:'#AE929B',
+    hues:['#c05686'],
+    glow:['#f1e1e6','#e4e1ef','#ebdfd2','#d7e5e7'] },
+
+  /* ↓ 以下 6 套是 2026-09-22 用户要「更多的中国传统组合配色」时加的。
+     每套的主色就是那个传统色本身，纸面取同族的浅色调。 */
+  { id:'blue',   name:'青花瓷', sub:'浅蓝纸 · 靛青主色',
+    paper:'#F4FAFD', paper2:'#FFFFFF', paper3:'#E3F0F8', side:'#EDF5FB',
+    ink1:'#16232E', ink2:'#3E5162', ink3:'#5D6E7D', ink4:'#9AABBA',
+    hues:['#177cb0'],
+    glow:['#d5e4ee','#cdd9e6','#dce8ec','#dcdbe8'] },
+
+  { id:'rouge',  name:'胭脂',   sub:'浅绯纸 · 胭脂主色',
+    paper:'#FCF4F4', paper2:'#FFFFFF', paper3:'#F7E3E4', side:'#FAEDED',
+    ink1:'#2C181A', ink2:'#5A3739', ink3:'#855E60', ink4:'#B39292',
+    hues:['#9d2933'],
+    glow:['#f0dcdc','#e8dcdc','#ecdfd8','#e3dce4'] },
+
+  { id:'plum',   name:'绛紫',   sub:'藕荷纸 · 绛紫主色',
+    paper:'#FBF4F7', paper2:'#FFFFFF', paper3:'#F1E5EA', side:'#F8EFF4',
+    ink1:'#2B1B20', ink2:'#573C44', ink3:'#7E616A', ink4:'#AD949B',
+    hues:['#8c4356'],
+    glow:['#ecdde3','#e3dde6','#eae0e2','#e0dcea'] },
+
+  { id:'bamboo', name:'竹青',   sub:'荼白纸 · 竹青主色',
+    paper:'#F6FAF4', paper2:'#FFFFFF', paper3:'#E8F2E3', side:'#EFF7EC',
+    ink1:'#1E2A1C', ink2:'#44523E', ink3:'#63705D', ink4:'#9DAA96',
+    hues:['#789262'],
+    glow:['#dde8d6','#dfe6dc','#d8e5da','#e6ebdb'] },
+
+  { id:'qiuxiang', name:'秋香', sub:'牙色纸 · 秋香色主色',
+    paper:'#FBF8E9', paper2:'#FFFFFF', paper3:'#F6EEDA', side:'#F9F4E1',
+    ink1:'#2B2513', ink2:'#554C2A', ink3:'#756C43', ink4:'#ADA47C',
+    hues:['#d9b611'],
+    glow:['#efe6c6','#f0e5bf','#e9e7c6','#ece1c4'] },
+
+  { id:'inkwash', name:'水墨',  sub:'素色纸 · 墨色主色',
+    paper:'#F5F3F0', paper2:'#FFFFFF', paper3:'#E9E6E2', side:'#F0EDEA',
+    ink1:'#1A1D20', ink2:'#3E464B', ink3:'#61686E', ink4:'#9AA1A6',
+    hues:['#50616d'],
+    glow:['#e2e2e1','#e3e6e8','#e6e4e1','#e4e2e5'] }
+];
+
+const hex2rgb = h => { const n = parseInt(h.slice(1), 16); return [(n>>16)&255, (n>>8)&255, n&255]; };
+const rgba    = (h, a) => { const c = hex2rgb(h); return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')'; };
+const darken  = (h, f) => '#' + hex2rgb(h).map(v => Math.max(0, Math.round(v*f)).toString(16).padStart(2,'0')).join('');
+/* 向白色混合 —— 用来从任意基色派生淡彩卡片底 */
+const tint    = (h, f) => '#' + hex2rgb(h).map(v => Math.round(v + (255 - v) * f).toString(16).padStart(2,'0')).join('');
+
+/* 把每个主题的 hues 补到 9 个位置（历史形状）。
+   为什么还要补：除了 vars() 只认 ACC[0]，另有 4 处真的在按槽位取色 ——
+     剪切板那张趋势图取 ACC[3]、平台解析提示取 ACC[slot]（slot 只到 3）、
+     剪切板分型小标签取 ACC[0..2]、"钉住"预览的窗口卡片取 ACC[s]（s 到 7）。
+   所以这 9 位不能留空。
+   为什么要补成同族色阶而不是继续塞别的色相：这几处原来是"每个平台一个色、
+   每种剪贴类型一个色、每个预览窗口一个色"，正是用户说"太花"时的那种
+   "按条目染色"。改成主色的深浅阶之后，同一屏里不会再冒出第三种色相。
+   深浅交替（而不是一路往白里调）是因为其中几档要**当字色用** ——
+   一路变浅的话最后两三档在纸面上根本看不见。 */
+const HUES_PAD = [.30, -.14, .44, -.28, .56, -.40, .66, -.52];
+THEMES.forEach(t => {
+  HUES_PAD.forEach(f => {
+    if (t.hues.length < 9) t.hues.push(f > 0 ? tint(t.hues[0], f) : darken(t.hues[0], 1 + f));
+  });
+});
+
+/* 一次性下发"点睛色"的全部派生令牌。
+   --cb      主色（图标、强调线）
+   --cb-bar  半透明主色（卡片左侧色条）
+   --cb-soft 淡彩底（图标底、标签底）—— 小面积用
+   --cb-tint 大面积底色（分组大卡的卡身）—— **中性纸白**，不带彩
+   --cb-brd  淡描边
+   --cb-ink  深色文字（彩色卡上的标题）
+
+   ---------------------------------------------------------------
+   配色收敛（2026-09-22）。用户的反馈是："这一版的配色太花了，又花里胡哨的，
+   一点不简洁高雅。"
+
+   根子在这里：原来 vars(c) 把**传进来的**颜色派生成五档彩色令牌，而调用方
+   是按"每个页面一个色相 / 每个分组一个色相 / 每个平台一个色相"传值的
+   （pageColor(p) = ACC[p.ci]、colorFor(name) 在九色轮里哈希轮转）。
+   于是同一屏上同时出现七八种颜色 —— 侧栏 13 个图标 13 种色、一页四五个
+   不同颜色的分组大卡、标签芯片五颜六色，加上背景四团彩色光斑。
+
+   现在 vars() 一律返回**主题主色**的那一套：
+     · 彩色只出现在小面积处（图标底、选中态、状态点、分组前那一小段竖线）；
+     · 大面积（分组卡卡身、页头、数据格）用中性纸白，一点彩都不铺；
+     · 骨架交给墨色阶 —— 要区分板块靠名字和图标，不靠色相。
+
+   参数签名保留但不再读取：调用点有十五六处，逐个改既慢又容易漏，
+   而**漏掉任何一个都会让某块地方继续花**。这里一处改掉，全部生效。 */
+const vars = () => '--cb:' + ACC[0]
+  + ';--cb-bar:' + rgba(ACC[0], .55)
+  + ';--cb-soft:' + tint(ACC[0], .88)
+  + ';--cb-tint:' + rgba('#FFFFFF', glassA(glassG(), .32))
+  + ';--cb-brd:'  + rgba(ACC[0], .20)
+  + ';--cb-ink:'  + darken(ACC[0], .52) + ';';
+/* ↑ .62 → .52（2026-09-22）。
+   --cb-ink 是**字色**：压在 --cb-soft（主色的淡彩底）或纸面上的小字
+   （标签、单位、编号、面包屑）。加了"秋香"那套（主色 #d9b611 芥末黄）
+   之后量了一遍 WCAG 对比度：.62 时秋香的字只有 4.40:1，差一点点到 A 级线
+   4.5（其余八套在 6.5–10.3，很宽裕）。压到 .52 后秋香过 5:1，
+   另外八套只会更清楚 —— 这个系数只影响字，不影响图标和色条。 */
+
+/* 面板不透明度（设置里的那根滑杆），默认 60。
+   面板上有四个半透明面：面板底 / 侧栏 / 常规面 / 实面。它们原来各自写死
+   （.60 / .74 / .56 / .92），彼此差着固定的档差，才形成"同一块磨砂玻璃上
+   有层次"的观感。滑杆只调一个数，所以必须把档差补回去 ——
+   只改面板底不动其它，四个面会挤到同一个不透明度上，材质立刻散掉。 */
+let CUR = THEMES[0], ACC = [], GLASS = 60;
+/* 按档差推导某一层的 alpha，并夹在可读区间内。
+   下界 .12：再透下去，桌面上的窗口会直接穿到正文上。
+   上界 .94（2026-09-22 加的）：滑杆拉到 100 时**面板底不能是 1.0**。
+   面板上所有层次感都来自"同一个 g 上加减固定档差"——卡片 +.38、
+   抬升面 +.32、侧栏 +.14。g 一旦到 1.0，Math.min(1, …) 会把它们全部
+   压成同一个 1.0，卡片和面板底一样实，"卡片浮在面板上"的材质立刻散掉
+   （这正是原来那版只改面板底会散架的同一个根因，只是换到了顶端）。
+   留 6% 余地：100% 时面板底 .94、卡片 1.0，仍然读得出层次。 */
+const glassG = () => Math.max(.30, Math.min(.94, GLASS / 100));
+const glassA = (g, d) => Math.round(Math.max(.12, Math.min(1, g + d)) * 100) / 100;
+
+function applyTheme(id){
+  CUR = THEMES.find(t => t.id === id) || THEMES[0];
+  ACC = CUR.hues.slice();
+  const r = document.documentElement.style, t = CUR;
+  const set = (k, v) => r.setProperty(k, v);
+  set('--paper', t.paper); set('--paper-2', t.paper2); set('--paper-3', t.paper3);
+  /* 四个半透明面 + 模糊，全部由 GLASS 派生。
+     GLASS = 60 时这几个数正好等于原来写死的 .60/.74/.56/.92（42px 模糊
+     也是原来的值），所以默认观感一个字都没变。 */
+  const g = glassG();
+  set('--panel-bg', rgba(t.paper2, g));
+  set('--side-bg',  rgba(t.side,    glassA(g,  .14)));
+  set('--surf',     rgba('#FFFFFF', glassA(g, -.04)));
+  set('--surf-2',   rgba('#FFFFFF', glassA(g,  .32)));
+  set('--surf-solid', rgba(t.paper2, glassA(g, .40)));
+  /* 卡片面（2026-09-22）。卡片原来一律写死 #fff —— 滑杆对它们**完全无效**，
+     用户看到的正是"面板在透，卡片还是一块块实心板"。
+     档差 .38 让它始终比面板底高一档：卡片仍然浮在面板之上，只是跟着一起透。 */
+  set('--card',     rgba('#FFFFFF', glassA(g,  .38)));
+  /* 弹层（配色弹层 / 表单浮层）比卡片再实一点：它压在所有内容之上，
+     透太多会跟背后的正文糊在一起。取 .33，正好落在原来写死的
+     .90（.tpop）与 .97（.mp-card）之间，两处的观感都只差三四个百分点。 */
+  set('--pop',      rgba('#FFFFFF', glassA(g,  .33)));
+  /* 纸面本身也参与。--paper-3 是"凹陷面"的底 —— 代码块、说明条、分段控件
+     轨道、芯片底、状态徽标，全站 39 处。它不参与的话，面板调到很透以后，
+     页面上会浮着一块块不透明的补丁，比不调还难看。一处改掉，全部生效。 */
+  set('--paper-3',  rgba(t.paper3, glassA(g, .40)));
+  /* 越透越要糊：透到 .30 而不加模糊，底下的壁纸会直接穿到字上；
+     反过来面板越实，模糊纯属白花钱（backdrop-filter 是唤出时最贵的一步）。 */
+  set('--blur-panel', Math.round(Math.max(18, Math.min(64, 42 + (60 - GLASS) * .45))) + 'px');
+  set('--ink-1', t.ink1); set('--ink-2', t.ink2); set('--ink-3', t.ink3); set('--ink-4', t.ink4);
+  set('--line', rgba(t.ink1, .10)); set('--line-2', rgba(t.ink1, .18)); set('--brd', rgba('#FFFFFF', .64));
+  /* 辅助色不再是"另外三个色相"。
+     原来 a2/a3/a4 取色轮上另外三个位置，于是页头插画（文件夹那一张的三个
+     文件夹分别是 --cb / --a3 / --a2）本身就是三种颜色 —— 插画反倒成了一屏
+     里最花的地方。现在 a2/a4 走中性灰、a3 走主色的浅调，插画整体呈现
+     "主色 + 灰阶"，跟界面其它部分同一个调子。 */
+  const H = t.hues;
+  set('--a1', H[0]);
+  set('--a2', tint(t.ink1, .66));
+  set('--a3', tint(H[0], .48));
+  set('--a4', tint(t.ink1, .78));
+  set('--a1-d', darken(H[0], .66)); set('--a1-soft', tint(H[0], .84)); set('--a1-brd', rgba(H[0], .30));
+  set('--veil', rgba(t.paper, .48));
+  /* 光斑：降到 .44/.36 —— 原本 .95/.90 的四团彩色几乎不透明地铺满整屏，
+     是"整体太亮"的最大来源。 */
+  set('--g1', rgba(t.glow[0], .44)); set('--g2', rgba(t.glow[1], .44));
+  set('--g3', rgba(t.glow[2], .36)); set('--g4', rgba(t.glow[3], .36));
+  set('--sh-panel', '0 34px 90px -30px ' + rgba(t.ink1,.30) + ',0 4px 12px -5px ' + rgba(t.ink1,.10) + ',inset 0 1px 0 ' + rgba('#FFFFFF',.92));
+  set('--sh-card', '0 2px 8px -3px ' + rgba(t.ink1,.12));
+  set('--sh-lift', '0 18px 34px -16px ' + rgba(t.ink1,.30));
+}
+
+/* 由分类名派生颜色 —— 在整套色轮里轮转，保证同一分类永远同色 */
+function colorFor(key){
+  let h = 2166136261;
+  for (let i = 0; i < key.length; i++){ h ^= key.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return ACC[h % ACC.length];
+}
+const fileKind = n => {
+  const e = String(n).split('.').pop().toLowerCase();
+  if (['xlsx','xls','csv','et','tsv'].indexOf(e) >= 0) return 'sheet';
+  if (e === 'pdf') return 'pdf';
+  if (['pptx','ppt','dps'].indexOf(e) >= 0) return 'slide';
+  if (['zip','rar','7z','tar','gz'].indexOf(e) >= 0) return 'zip';
+  if (['png','jpg','jpeg','gif','svg','webp','bmp'].indexOf(e) >= 0) return 'img';
+  if (['m','slx','mdl','a2l','json','xml','mat','dbc','c','h','arxml'].indexOf(e) >= 0) return 'model';
+  return 'doc';
+};
+/* 取扩展名（小写、不带点）。暂存卡片角标与预览层都用它。
+   注意：拆分源码时漏掉了这个函数，buildStaging 会抛 ReferenceError，
+   而 renderPage 的循环没有兜底，会连带让后面的板块一起空白。 */
+const extOf = n => { const p = String(n).split('.'); return p.length > 1 ? p.pop().toLowerCase() : ''; };
+/* 这里原来还有一个 fileColor()：给 xlsx/doc/pdf/图片各配一个色相。
+   配色收敛之后它的下游全变成"算出来再传给 vars()，而 vars() 已经不取参数"，
+   也就是说这些颜色一个都没渲染出来 —— 但它仍在每一处读起来像"文件是按类型
+   染色的"。功能上死掉、读起来还活着的代码，比删掉危险。已整体移除，
+   连带 THEMES 里的 file 表和 buildStaging / openFilePreview 里的取色调用。
+   文件类型仍然分得清：靠的是图标形状（sheet/file/slide/zip/image/model）。 */

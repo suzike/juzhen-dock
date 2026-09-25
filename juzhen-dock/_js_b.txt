@@ -1,0 +1,598 @@
+/* ================================================================
+   三、数据
+   ================================================================ */
+const DATA = {
+  folders: [
+    { name:'热管理算法',    path:'E:\\Projects\\Thermal\\Algorithm' },
+    { name:'Simulink 模型', path:'E:\\Projects\\Thermal\\Models' },
+    { name:'需求规格',      path:'E:\\Projects\\Thermal\\Requirements' },
+    { name:'HIL 测试',      path:'E:\\Projects\\Thermal\\HIL' },
+    { name:'标定数据',      path:'D:\\Calibration\\2026' },
+    { name:'标定归档',      path:'D:\\Calibration\\Archive' },
+    { name:'行业资料',      path:'D:\\Docs\\Industry' },
+    { name:'论文库',        path:'D:\\Docs\\Papers' },
+    { name:'个人文档',      path:'C:\\Users\\Lenovo\\Documents' },
+    { name:'下载',          path:'C:\\Users\\Lenovo\\Downloads' }
+  ],
+  links: [
+    { name:'内网 GitLab',  host:'gitlab.internal',  url:'https://gitlab.internal' },
+    { name:'CI 构建平台',  host:'jenkins.internal', url:'https://jenkins.internal' },
+    { name:'需求管理平台', host:'req.internal',     url:'https://req.internal' },
+    { name:'团队知识库',   host:'wiki.internal',    url:'https://wiki.internal' },
+    { name:'腾讯文档',     host:'docs.qq.com',      url:'https://docs.qq.com' },
+    { name:'AUTOSAR 规范', host:'autosar.org',      url:'https://autosar.org' },
+    { name:'ISO 26262',    host:'iso.org',          url:'https://iso.org/standard/26262' },
+    { name:'arXiv',        host:'arxiv.org',        url:'https://arxiv.org' },
+    { name:'哔哩哔哩',     host:'bilibili.com',     url:'https://bilibili.com' },
+    { name:'掘金',         host:'juejin.cn',        url:'https://juejin.cn' }
+  ],
+  clip: [
+    { url:'https://mp.weixin.qq.com/s/aBcDeFgHiJk', pid:'wechat', name:'微信公众号', ab:'微', slot:1, kind:'文章',
+      title:'聊聊汽车热管理中的 PMV 建模与工程落地', desc:'从 Fanger 模型讲到实车标定，附 Simulink 实现思路',
+      tags:['热管理','PMV','建模'], time:'2 天前' },
+    { url:'https://www.xiaohongshu.com/explore/65f0a1b2', pid:'xhs', name:'小红书', ab:'书', slot:0, kind:'笔记',
+      title:'车载空调个性化设置的一些真实体验', desc:'记录了几款车型的座椅加热与出风联动逻辑',
+      tags:['智能空调','个性化'], time:'3 天前' },
+    { url:'https://github.com/example/awesome-llm-agents', pid:'github', name:'GitHub', ab:'G', slot:3, kind:'仓库',
+      title:'example / awesome-llm-agents', desc:'收集 LLM Agent 相关的框架、论文与工程实践',
+      tags:['AI','Agent','工具'], time:'5 天前' },
+    { url:'https://zhuanlan.zhihu.com/p/123456789', pid:'zhihu', name:'知乎', ab:'知', slot:2, kind:'文章',
+      title:'AUTOSAR Classic 平台从零到一的架构梳理', desc:'BSW、RTE、SWC 三层结构的职责边界讲得比较清楚',
+      tags:['AUTOSAR','车端软件'], time:'1 周前' },
+    { url:'https://arxiv.org/abs/2409.01234', pid:'arxiv', name:'arXiv', ab:'a', slot:2, kind:'论文',
+      title:'arXiv 2409.01234', desc:'Deep Reinforcement Learning for Cabin Thermal Comfort Control',
+      tags:['论文','强化学习','热管理'], time:'1 周前' },
+    { url:'https://www.bilibili.com/video/BV1xx411c7mD', pid:'bili', name:'哔哩哔哩', ab:'B', slot:1, kind:'视频',
+      title:'B站视频 BV1xx411c7mD', desc:'Simulink 建模实战：从需求到可运行模型',
+      tags:['Simulink','教程'], time:'2 周前' }
+  ],
+  staging: [
+    { name:'WPTC_热量分配_标定表.xlsx', size:842*1024, path:'D:\\Calibration\\2026\\WPTC_热量分配_标定表.xlsx', mode:'引用',
+      demo:{ type:'sheet', sheets:[
+        { name:'热量分配', head:['工况','环境温度','目标出水','压缩机转速','水泵占空比','分配系数'], rows:[
+          ['怠速制冷','35 ℃','6 ℃','3200 rpm','72 %','0.42'],
+          ['城市循环','28 ℃','8 ℃','2600 rpm','58 %','0.38'],
+          ['高速巡航','32 ℃','7 ℃','3400 rpm','66 %','0.45'],
+          ['低温制热','-5 ℃','45 ℃','4200 rpm','84 %','0.61'],
+          ['除霜模式','2 ℃','52 ℃','4600 rpm','91 %','0.68'],
+          ['经济模式','26 ℃','12 ℃','1800 rpm','40 %','0.31']
+        ]},
+        { name:'阈值表', head:['参数','下限','上限','单位'], rows:[
+          ['出水温度',4,60,'℃'],['压缩机转速',800,6000,'rpm'],
+          ['水泵占空比',0,100,'%'],['分配系数',0,1,'—']
+        ]}
+      ]}},
+    { name:'热舒适报点数据_0912.csv', size:1.1*1024*1024, path:'E:\\Projects\\Thermal\\Data\\热舒适报点数据_0912.csv', mode:'引用',
+      demo:{ type:'sheet', sheets:[
+        { name:'报点数据', head:['时间','舱温','湿度','风速','PMV','PPD','主观评分'], rows:[
+          ['09:12:03','24.6 ℃','48 %','0.32 m/s','-0.21','5.8 %','略凉'],
+          ['09:12:18','24.9 ℃','47 %','0.30 m/s','-0.14','5.2 %','适中'],
+          ['09:12:33','25.2 ℃','47 %','0.28 m/s','-0.06','5.0 %','适中'],
+          ['09:12:48','25.5 ℃','46 %','0.26 m/s','0.09','5.1 %','适中'],
+          ['09:13:03','25.8 ℃','46 %','0.25 m/s','0.22','5.9 %','略暖'],
+          ['09:13:18','26.1 ℃','45 %','0.24 m/s','0.35','7.4 %','偏暖']
+        ]}
+      ]}},
+    { name:'空调控制策略_SWRS_v2.3.docx', size:2.4*1024*1024, path:'E:\\Projects\\Thermal\\Requirements\\空调控制策略_SWRS_v2.3.docx', mode:'引用',
+      demo:{ type:'doc', blocks:[
+        { h:'1. 范围', p:'本文档规定智能空调应用层软件的功能需求、接口需求与非功能需求，适用于高通 8295 平台 AUTOSAR Classic 量产项目。' },
+        { h:'2. 功能需求', p:'FR-01 系统应支持基于驾驶员身份识别的个性化热舒适档案自动加载，加载时延不超过 500 ms。' },
+        { h:'', p:'FR-02 系统应根据舱内温度、湿度、风速与日照强度实时计算 PMV 与 PPD，计算周期不大于 100 ms。' },
+        { h:'', p:'FR-03 系统应在检测到前风挡起雾风险时，自动切换至除霜模式并调整出风分配比例。' },
+        { h:'3. 非功能需求', p:'NFR-01 控制算法单次执行时间不超过 5 ms，满足 10 ms 任务周期约束。' },
+        { h:'', p:'NFR-02 所有标定量应通过 A2L 文件描述，支持在线标定与数据回读。' }
+      ]}},
+    { name:'热舒适建模_技术笔记.md', size:38*1024, path:'E:\\Projects\\Thermal\\Docs\\热舒适建模_技术笔记.md', mode:'引用',
+      demo:{ type:'md', text:'# 热舒适建模技术笔记\n\n## 一、PMV 模型的基本形式\n\nPMV 由 Fanger 提出，综合了**代谢率**、**服装热阻**、**空气温度**、**平均辐射温度**、**风速**与**相对湿度**六个变量：\n\n```\nPMV = (0.303 * exp(-0.036 * M) + 0.028) * L\n```\n\n其中 `L` 为人体热负荷。工程上通常配合 PPD 使用：\n\n- PMV = 0 表示热中性\n- |PMV| <= 0.5 为可接受区间\n- PPD 建议控制在 10% 以内\n\n## 二、标定流程\n\n1. 采集稳态工况下的舱内环境参数\n2. 同步记录乘员主观评分\n3. 用最小二乘拟合修正系数\n4. 在 HIL 台架上做回归验证\n\n> 注意：夏季标定与冬季标定的修正系数不能混用。\n\n## 三、与个性化档案的衔接\n\n个性化档案中保存的偏置量应作为 PMV 目标的修正项，而不是直接改写模型系数。这样可以在保证模型一致性的同时实现个性化。' }},
+    { name:'智慧空调_阶段汇报.pptx', size:5.6*1024*1024, path:'E:\\Projects\\Thermal\\Reports\\智慧空调_阶段汇报.pptx', mode:'引用',
+      demo:{ type:'slide', slides:[
+        { t:'智慧空调个性化项目', pts:['阶段汇报 · 2026 年 9 月','热管理应用层软件组'] },
+        { t:'项目目标', pts:['基于驾驶员识别的个性化热舒适档案','离线强化学习优化控制策略','全链路 AUTOSAR Classic 量产落地'] },
+        { t:'当前进展', pts:['PMV 模型完成标定，|PMV| 偏差控制在 0.15 以内','离线 RL 策略在仿真平台完成 2000 回合训练','Simulink 模型通过 MIL 测试，覆盖率 92%'] },
+        { t:'风险与对策', pts:['个性化档案冷启动数据不足 → 引入先验模板','HIL 台架资源紧张 → 采用云端仿真补充','标定周期偏长 → 建立自动化标定流水线'] },
+        { t:'下一步计划', pts:['完成 HIL 集成测试','开展实车热舒适标定','提交 SWRS v3.0 评审'] }
+      ]}},
+    { name:'热舒适曲线_0912.png', size:186*1024, path:'E:\\Projects\\Thermal\\Reports\\热舒适曲线_0912.png', mode:'引用', demo:{ type:'img' } }
+  ],
+  board: [
+    { text:'cd E:\\Projects\\Thermal\\Algorithm', time:'15:20', bucket:'today', pinned:false, type:'path' },
+    { text:'https://mp.weixin.qq.com/s/aBcDeFgHiJk', time:'15:04', bucket:'today', pinned:false, type:'link' },
+    { text:'PMV = (0.303 * exp(-0.036 * M) + 0.028) * L', time:'14:38', bucket:'today', pinned:true, type:'code' },
+    { text:'热舒适度评价应采用 PMV 与 PPD 双指标，PPD 建议控制在 10% 以内；个性化档案的偏置量只修正目标值，不改写模型系数。', time:'11:26', bucket:'today', pinned:false, type:'text' },
+    { text:'D:\\Calibration\\2026\\WPTC_热量分配_标定表.xlsx', time:'昨天 17:42', bucket:'yest', pinned:false, type:'path' },
+    { text:'def pmv(m, clo, ta, tr, vel, rh):\n    return (0.303 * exp(-0.036 * m) + 0.028) * load', time:'昨天 09:15', bucket:'yest', pinned:false, type:'code' },
+    { text:'https://arxiv.org/abs/2409.01234', time:'9 月 12 日', bucket:'early', pinned:false, type:'link' },
+    { text:'标定量写入前必须校验 A2L 地址映射，否则回读数据会整体错位。', time:'9 月 11 日', bucket:'early', pinned:false, type:'text' }
+  ]
+};
+
+/* ================================================================
+   四、自动归类 · 链接识别 · 类型判定
+   ================================================================ */
+const fmtSize = b => { if (!b || b < 0) return '—';
+  if (b < 1024) return b + ' B'; if (b < 1048576) return Math.round(b / 1024) + ' KB'; return (b / 1048576).toFixed(1) + ' MB'; };
+/* 转义表提到模块级：旧写法把对象字面量写在 replace 回调里，
+   每匹配到一个特殊字符就新建一个对象，列表页一屏能触发上千次。 */
+const ESC_MAP = { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' };
+const esc = s => String(s).replace(/[&<>"']/g, h => ESC_MAP[h]);
+
+function folderGroup(p){
+  const parts = String(p).split(/[\\/]+/).filter(Boolean);
+  if (parts.length < 2) return '根目录';
+  const parent = parts[parts.length - 2];
+  if (/^(lenovo|users|admin)$/i.test(parent)) return '个人目录';
+  return parent;
+}
+function parentOf(p){
+  const parts = String(p).split(/[\\/]+/).filter(Boolean);
+  if (parts.length < 2) return String(p);
+  const win = String(p).indexOf('\\') >= 0;
+  return (win ? '' : '/') + parts.slice(0, -1).join(win ? '\\' : '/');
+}
+/* eg 是写给用户看的例子。分组靠正则判定，而"什么样的网址会落进这一组"
+   是一句正则说不清楚的 —— 分组头那个「+」点开时得告诉用户该填什么，
+   否则他填了个不合规的域名，网址会静默跳到「其他站点」去。 */
+const LINK_GROUPS = [
+  { re:/gitlab|github|gitee|jenkins|sonar|nexus|jira|tapd|ci\./i,     name:'开发与协作', eg:'gitlab / github / jenkins / jira' },
+  { re:/req|需求|wiki|知识|confluence|docs?\.|文档|office|腾讯文档/i,  name:'需求与知识', eg:'req / wiki / docs.qq.com' },
+  { re:/autosar|iso|标准|规范|spec|ieee|26262/i,                      name:'规范与标准', eg:'autosar.org / iso.org' },
+  { re:/arxiv|scholar|paper|论文|research/i,                          name:'论文与检索', eg:'arxiv.org / scholar' },
+  { re:/bilibili|youtube|掘金|juejin|知乎|zhihu|medium|b23\.tv/i,      name:'学习与社区', eg:'bilibili / juejin / zhihu' }
+];
+function linkGroup(l){
+  const hay = (l.name + ' ' + l.host + ' ' + l.url).toLowerCase();
+  const g = LINK_GROUPS.find(x => x.re.test(hay));
+  return g ? g.name : '其他站点';
+}
+/* 这一组"收什么样的网址"。给分组头的「+」当提示用 */
+function linkGroupHint(name){
+  const g = LINK_GROUPS.find(x => x.name === name);
+  return g ? g.eg : '没被上面几组认出来的站点（apache.org、newsletter 这类）';
+}
+
+const PLATFORMS = [
+  { id:'wechat', name:'微信公众号', re:/(^|\.)mp\.weixin\.qq\.com$|(^|\.)weixin\.qq\.com$/, slot:1, kind:'文章', ab:'微' },
+  { id:'xhs',    name:'小红书',     re:/(^|\.)xiaohongshu\.com$|(^|\.)xhslink\.com$/,      slot:0, kind:'笔记', ab:'书' },
+  { id:'github', name:'GitHub',     re:/(^|\.)github\.com$/,                              slot:3, kind:'仓库', ab:'G' },
+  { id:'zhihu',  name:'知乎',       re:/(^|\.)zhihu\.com$/,                               slot:2, kind:'文章', ab:'知' },
+  { id:'bili',   name:'哔哩哔哩',   re:/(^|\.)bilibili\.com$|(^|\.)b23\.tv$/,              slot:1, kind:'视频', ab:'B' },
+  { id:'arxiv',  name:'arXiv',      re:/(^|\.)arxiv\.org$/,                               slot:2, kind:'论文', ab:'a' },
+  { id:'juejin', name:'掘金',       re:/(^|\.)juejin\.cn$/,                               slot:0, kind:'文章', ab:'掘' },
+  { id:'csdn',   name:'CSDN',       re:/(^|\.)csdn\.net$/,                                slot:3, kind:'文章', ab:'C' }
+];
+const FALLBACK_PF = { id:'web', name:'网页', slot:2, kind:'文章', ab:'网' };
+const TAG_RULES = [
+  { re:/agent|llm|gpt|prompt|大模型|人工智能|neural|transformer/i, tags:['AI','Agent'] },
+  { re:/simulink|matlab|stateflow/i,                              tags:['Simulink','建模'] },
+  { re:/autosar|ecu|can\b|lin\b/i,                                tags:['AUTOSAR','车端软件'] },
+  { re:/thermal|hvac|pmv|comfort|cooling|空调|热管理|热舒适/i,     tags:['热管理','空调'] },
+  { re:/reinforcement|ppo|sac|dqn|强化学习/i,                      tags:['强化学习'] },
+  { re:/awesome|toolkit|framework|框架|cli|工具/i,                 tags:['工具'] },
+  { re:/calibration|标定|hil|mil|测试/i,                           tags:['标定测试'] },
+  { re:/paper|survey|论文|综述|abs\//i,                            tags:['论文'] }
+];
+function parseUrl(raw){
+  let u; try { u = new URL(String(raw).trim()); } catch(e){ return null; }
+  if (!/^https?:$/.test(u.protocol)) return null;
+  const host = u.hostname.toLowerCase();
+  const pf = PLATFORMS.find(p => p.re.test(host)) || FALLBACK_PF;
+  const seg = u.pathname.split('/').filter(Boolean);
+  let kind = pf.kind, title = '';
+  if (pf.id === 'github' && seg.length >= 2){
+    title = seg[0] + ' / ' + seg[1];
+    kind = seg[2] === 'issues' ? '议题' : (seg[2] === 'blob' || seg[2] === 'tree') ? '代码' : '仓库';
+  } else if (pf.id === 'arxiv' && seg.length){ title = 'arXiv ' + seg[seg.length - 1]; }
+  else if (pf.id === 'bili' && seg[0] === 'video'){ title = 'B站视频 ' + (seg[1] || ''); }
+  else if (seg.length){
+    let last = seg[seg.length - 1];
+    /* 路径里出现非法的百分号序列时 decodeURIComponent 会抛 URIError，
+       宁可退回原文，也不要让整条收藏流程中断。 */
+    try { last = decodeURIComponent(last); } catch(e){}
+    title = last.replace(/[-_]+/g, ' ').slice(0, 64);
+  }
+  if (!title) title = host;
+  const hay = (u.pathname + ' ' + u.search).toLowerCase();
+  const tags = [];
+  TAG_RULES.forEach(r => { if (r.re.test(hay)) r.tags.forEach(t => { if (tags.indexOf(t) < 0) tags.push(t); }); });
+  if (!tags.length) tags.push(pf.name);
+  return { url:u.href, pid:pf.id, name:pf.name, ab:pf.ab, slot:pf.slot, kind, title, desc:'', tags, time:'刚刚' };
+}
+
+/* 剪切板：类型判定 + 语言猜测 */
+const BOARD_TABS = [{ key:'all', label:'全部' }, { key:'text', label:'文本' }, { key:'link', label:'链接' }, { key:'code', label:'代码' }, { key:'path', label:'路径' }];
+const TYPE_NAME = { text:'纯文本', link:'链接', code:'代码', path:'路径' };
+const TYPE_ICON = { text:'text', link:'link', code:'code', path:'route' };
+const typeColor = t => t === 'link' ? ACC[0] : t === 'code' ? ACC[1] : t === 'path' ? ACC[2] : CUR.ink3;
+function boardType(t){
+  const s = String(t).trim();
+  if (/^https?:\/\/\S+$/i.test(s)) return 'link';
+  if (/^[A-Za-z]:\\/.test(s) || /^\\\\/.test(s) || /^[A-Za-z]:\//.test(s)) return 'path';
+  if (/(function\s|const\s|let\s|var\s|def\s|import\s|from\s|class\s|=>|<\/?[a-zA-Z]+[^>]*>|^\s*[\[{])/m.test(s)) return 'code';
+  return 'text';
+}
+function codeLang(s){
+  if (/^\s*(#include|int\s+main|void\s+\w+\s*\()/m.test(s)) return 'c / c++';
+  if (/^\s*(def\s|import\s+\w|from\s+\w+\s+import)/m.test(s)) return 'python';
+  if (/^\s*(function|const|let|var|=>|export\s|import\s)/m.test(s)) return 'javascript';
+  if (/^\s*[\[{]/.test(s.trim())) return 'json';
+  if (/^\s*(cd|ls|grep|git|npm|pip|docker|kubectl|sudo)\b/m.test(s)) return 'shell';
+  if (/<\/?[a-zA-Z]+[^>]*>/.test(s)) return 'html';
+  return '表达式';
+}
+const lineCount = s => String(s).split('\n').length;
+/* 搜索结果里给剪切板/速记这类多行文本取一个单行摘要（换行折成空格、压掉连续空白） */
+const lineOne = s => String(s == null ? '' : s).replace(/\s+/g, ' ').trim().slice(0, 64);
+function linkHost(t){ try { return new URL(String(t).trim()).hostname.replace(/^www\./, ''); } catch(e){ return ''; } }
+function crumb(path){
+  const win = String(path).indexOf('\\') >= 0;
+  const parts = String(path).split(/[\\/]+/).filter(Boolean);
+  return parts.map((p, i) => {
+    const label = i === 0 ? (win ? p : '/' + p) : p;
+    return '<span>' + esc(label) + '</span>' + (i < parts.length - 1 ? '<i>›</i>' : '');
+  }).join('');
+}
+
+/* ================================================================
+   五、渲染层 —— 页面由 PAGES 声明，新增板块只需加一项
+   ================================================================ */
+const $  = id => document.getElementById(id);
+const $$ = sel => Array.prototype.slice.call(document.querySelectorAll(sel));
+const qq = s => String(s == null ? '' : s).toLowerCase();
+const stg = () => (state.query ? '' : ' data-stagger');
+const emptyBox = t => '<div class="empty-hint">' + esc(t) + '</div>';
+
+const toast = (function(){
+  let t = null;
+  return function(msg){
+    $('toastMsg').textContent = msg;
+    $('toast').classList.add('show');
+    clearTimeout(t);
+    t = setTimeout(function(){ $('toast').classList.remove('show'); }, 2400);
+  };
+})();
+
+function pick(list, fields){
+  /* 说明：这里的 state.query 过滤已经不是主搜索路径了 —— 查询非空时
+     renderPage 会直接换成跨板块的搜索结果页（见 _js_c 的搜索层），
+     所以下面这段只在"未来做本板块内二次筛选"时才会被走到。
+     保留它是因为 countOf() 仍靠它算侧栏里的命中数。 */
+  const s = qq(state.query);
+  if (!s) return list;
+  return list.filter(o => fields.some(f => qq(o[f]).indexOf(s) >= 0));
+}
+function visibleClips(){
+  const s = qq(state.query);
+  return DATA.clip.filter(c => {
+    const hay = qq(c.title + ' ' + c.desc + ' ' + c.name + ' ' + c.tags.join(' '));
+    return (!s || hay.indexOf(s) >= 0) && (state.clipFilter === '全部' || c.name === state.clipFilter);
+  });
+}
+function visibleBoard(){
+  const s = qq(state.query);
+  return DATA.board.filter(b => (!s || qq(b.text).indexOf(s) >= 0)
+    && (state.boardFilter === 'all' || b.type === state.boardFilter));
+}
+function countOf(id){
+  switch (id){
+    case 'folders': return pick(DATA.folders, ['name','path']).length;
+    case 'links':   return pick(DATA.links, ['name','host','url']).length;
+    case 'clip':    return visibleClips().length;
+    case 'staging': return pick(DATA.staging, ['name','path']).length;
+    case 'board':   return visibleBoard().length;
+    /* 拓展板块：today 只数未完成待办（已完成不该占红点），
+       scene / calc 是工具页，不显示计数。 */
+    case 'today':   return TOOL.todos.filter(t => !t.done).length;
+    case 'snip':    return pick(TOOL.snips, ['name','lang','text']).length;
+    case 'note':    return TOOL.notes.length;
+    case 'shot':    return TOOL.shots.length;
+    case 'ask':     return TOOL.asks.length;
+    default:        return -1;
+  }
+}
+const hitTotal = () => PAGES.reduce((a, p) => { const n = countOf(p.id); return a + (n > 0 ? n : 0); }, 0);
+
+const PAGES = [
+  { id:'today',    name:'今日',   icon:'star',     ci:1, group:'今日',     title:'今日概览',   sub:'待办 · 最近 · 场景',      build:buildToday },
+  { id:'folders',  name:'文件夹', icon:'folder',   ci:0, group:'常用入口', title:'文件夹直达', sub:'按父目录自动归类',      build:buildFolders },
+  { id:'links',    name:'网址',   icon:'globe',    ci:2, group:'常用入口', title:'快捷网址',   sub:'按用途自动归类',        build:buildLinks },
+  { id:'clip',     name:'收藏箱', icon:'bookmark', ci:3, group:'内容沉淀', title:'收藏箱',     sub:'粘贴链接，自动识别平台', build:buildClip },
+  { id:'staging',  name:'暂存',   icon:'tray',     ci:4, group:'内容沉淀', title:'临时暂存',   sub:'引用式记录 · 点击即预览', build:buildStaging },
+  { id:'board',    name:'剪切板', icon:'board',    ci:5, group:'内容沉淀', title:'剪切板',     sub:'持久留存 · 自动分型',    build:buildBoard },
+  { id:'scene',    name:'场景',   icon:'route',    ci:6, group:'效率工具', title:'场景切换',   sub:'一次点击切换整组环境',   build:buildScene },
+  { id:'term',     name:'终端',   icon:'terminal', ci:3, group:'效率工具', title:'终端',       sub:'真 ConPTY 会话 · 多标签',  build:buildTerm },
+  { id:'snip',     name:'片段',   icon:'code',     ci:7, group:'效率工具', title:'片段与命令', sub:'可复制 · 带变量占位',    build:buildSnip },
+  { id:'calc',     name:'换算',   icon:'calc',     ci:8, group:'效率工具', title:'工程换算',   sub:'单位 · 湿空气 · PMV',    build:buildCalc },
+  { id:'note',     name:'速记',   icon:'note',     ci:0, group:'效率工具', title:'速记',       sub:'想到就记，不打断思路',   build:buildNote },
+  { id:'shot',     name:'贴图',   icon:'camera',   ci:2, group:'效率工具', title:'贴图钉屏',   sub:'参考图钉在桌面最上层',   build:buildShot },
+  { id:'ask',      name:'速问',   icon:'bot',      ci:4, group:'效率工具', title:'AI 速问',    sub:'唤出即问 · 可存入速记',  build:buildAsk },
+  { id:'settings', name:'设置',   icon:'sliders',  ci:6, group:'系统',     title:'设置',       sub:'配色、触发与显示方式',   build:buildSettings }
+];
+const PAGE_MAP = {};
+PAGES.forEach(p => { PAGE_MAP[p.id] = p; });
+/* 板块的"说明"正文。**默认不占屏幕**。
+   用户的原话：「每一个模块无关的东西显示的太多，导致主功能界面被挤压」。
+   说明是有用的话，但它属于"读一次就够"的那一类 —— 常驻在正文里，
+   每天占掉的就是主功能的位置。所以它挂在页头那个 ⓘ 上：入口可见、
+   内容一字不减、默认不占地方。
+
+   值可以是数组，也可以是函数（内容要用渲染时的实时状态拼时用函数）。
+   谁声明、谁负责 —— 页面模块自己写，不集中堆在设置里，避免两处走散。 */
+const PAGE_INFO = {};
+const pageColor = p => ACC[p.ci];
+
+/* 页头那个「+」用哪个动作。
+   原来是 pageHead 里现场拼 `p.id + '-add'` —— 这么写出来的 data-act
+   **不在静态 HTML 里**，构建期守卫扫的正是静态 HTML，于是整条链路
+   （哪些页有 +、每个 + 有没有处理分支）全在盲区里。
+   集中登记成一张表，守卫就能逐个核对；也顺带把"这个板块靠什么新增"
+   变成一眼可查的事。
+   现在这张表覆盖**每一个有新增动作的板块**：页头「+」和列表底部那个
+   按钮指向同一条路，不会出现两个行为不同的"新增"。只有换算、设置两页
+   没有入口 —— 它们没有可增删的内容，硬放一个 + 就是假入口。 */
+const HEAD_ACT = {
+  today:'todo-new',
+  folders:'folders-add',   /* 与列表底部「新增文件夹」同一条路（editRecord） */
+  links:'links-add',       /* 同上 */
+  clip:'clip-new',         /* 与列表底部「新增收藏」同一条路；页顶那条粘贴栏
+                              是"快速收录"，不算重复的第二个新增按钮 */
+  staging:'staging-add',   /* 桌面版调系统文件对话框；拖入仍然可用 */
+  board:'board-new',       /* 剪切板原来一条手工入口都没有：只能靠复制触发 */
+  scene:'scene-new',
+  /* 终端页原来也在这里登记 term:'term-new'，指的是标签栏右边那个「新建」。
+     同一个动作在**同一屏上**摆两个可见入口（页头一个 +、标签栏一个「新建」），
+     按用户这轮那句「每一个模块无关的东西显示的太多，导致主功能界面被挤压」
+     就该去掉一个。留下标签栏那个：它紧贴着自己要创建的东西（一个标签），
+     用户看的就是那里；页头那个在 92px 之外，谁也说不清它加的是什么。
+     去掉之后页头只剩一个 ⓘ（说明入口），而且终端页的页头宽度**没变宽** ——
+     原来那个 30px 的 + 本来就占着这块地方。 */
+  snip:'snip-new',
+  note:'note-add',         /* 这一页的"新增"就是页顶那个输入框，head + 只是聚焦它 */
+  shot:'shot-add',
+  ask:'ask-new'            /* 与列表底部「手工记一条问答」同一条路。
+                              原来这里指向 ask-tpl-new —— 于是页头「+」加的是
+                              "常用问法"，而 FORMS.ask（问答）整条链路没有新增
+                              入口。用户要的是"每个功能都有可操作的入口"，
+                              常用问法自己有分组头的 +，页头这个留给问答本身 */
+};
+
+/* 分组头那个「+」用哪个动作。
+   和 HEAD_ACT 同样集中登记，理由也一样：写在这里的字符串构建期守卫
+   扫得到，现场拼的扫不到。key 是 gcard 的 addKind（也就是 data-kind），
+   守卫会核对"动作有处理分支" + "kind 是页面里真实出现过的"。 */
+const GROUP_ADD = {
+  folder:'folder-new',     /* 预填这一组的父目录，加完告诉你落进了哪一组 */
+  link:'link-new',         /* 提示这一组收什么样的域名 */
+  clip:'clip-new',         /* 预填平台名 / 平台标识，直接落进这一组 */
+  snip:'snip-new',         /* 预填分组名 */
+  ask:'ask-new',           /* 「本轮对话」那一组：手工记一条（不是向模型提问） */
+  askSess:'ask-sess-new',  /* 「会话」那一组：新开一段。会话是独立集合，所以它自己一组 */
+  askTpl:'ask-tpl-new'     /* 常用问法本身也是一组 */
+};
+/* 页头：左侧标题 + 右侧绘本插画 */
+function pageHead(p, extra, noAct){
+  const act = HEAD_ACT[p.id];
+  /* 右侧工具栏只剩两样：一个可选的「说明」ⓘ、一个可选的「新增」+。
+     没有登记 = 这一页没有"新增"这回事（今日/场景/片段/贴图/换算/设置/
+     搜索都在列表里或输入框里自带入口，页头再放一个 + 只会重复）；
+     没登记还硬渲染一个按钮，就是点着没反应的假入口。同理，没有说明就不摆 ⓘ。 */
+  const infoBtn = PAGE_INFO[p.id]
+    ? '<button class="ph-act quiet" data-act="ph-info" data-id="' + esc(p.id) + '" title="说明">' + IC('info', 15) + '</button>'
+    : '';
+  const addBtn = (noAct || !act) ? ''
+    : '<button class="ph-act" data-act="' + act + '" title="新增">' + IC('plus', 15) + '</button>';
+  return '<div class="phero" style="' + vars(pageColor(p)) + '">'
+       + '<div class="phero-tx"><div class="phero-t">' + esc(p.title) + '</div>'
+       + '<div class="phero-s">' + esc(extra || p.sub) + '</div></div>'
+       + (infoBtn || addBtn ? '<div class="phero-tools">' + infoBtn + addBtn + '</div>' : '')
+       + '<div class="phero-art">' + (ILLUS[p.id] || '') + '</div></div>';
+}
+
+/* 分组 = 一块彩色大卡，分组内的条目都装在这张卡里。
+   颜色由分组名派生，所以同一个分组永远是同一个颜色。
+   opt.grid 用来换卡内的网格：
+     · 不传  → 两列小条目网格（适合"图标 + 名称 + 副标题"的短条目）
+     · 'wide' → 自适应宽格，窄面板下自动落到单列（适合收藏箱这种
+                含标题/描述/标签三四层信息的内容型卡片）            */
+function gcard(name, n, body, opt){
+  const o = opt || {};
+  const c = o.color || colorFor(name);
+  const cls = 'gcard-b' + (o.one ? ' one' : '') + (o.grid ? ' ' + o.grid : '');
+  /* 分组头右侧那个「+」：往**当前这一个分组里**加一条。
+     起因是"分组"只做了归类，没有做归入 —— 文件夹按父目录自动分成了
+     Thermal / Calibration / Docs 几组，但整页只有一个"新增文件夹"，
+     想把一条加进指定分组全靠运气。现在每一组自带入口。
+     动作名仍然登记在 GROUP_ADD 表里（不是现场拼的）—— 现场拼出来的
+     data-act 静态 HTML 里扫不到，构建期守卫就会漏掉这一整条链路，
+     页头「+」已经在这上面栽过一次。
+     o.addCtx 里的键会原样变成 data-* 传到按钮上（如 data-group），
+     点击时再用 dataset 读回来，这样"加进哪一组"的上下文不会丢。 */
+  let add = '';
+  if (o.addKind){
+    const act = GROUP_ADD[o.addKind];
+    if (act){
+      const cx = o.addCtx || {};
+      const attrs = Object.keys(cx).map(k => ' data-' + k + '="' + esc(String(cx[k])) + '"').join('');
+      add = '<button class="gcard-add" data-act="' + act + '"' + attrs
+          + ' title="加进「' + esc(name) + '」">' + IC('plus', 13) + '</button>';
+    }
+  }
+  return '<section class="gcard" style="' + vars(c) + '">'
+       + '<div class="gcard-h"><span class="gcard-ico">' + IC(o.icon || 'folder', 18) + '</span>'
+       + '<span class="gcard-nm">' + esc(name) + '</span>'
+       + (o.hideN ? '' : '<span class="gcard-n">' + n + ' 项</span>')
+       + add
+       + '</div><div class="' + cls + '">' + body + '</div></section>';
+}
+function groupBy(items, keyFn){
+  const m = new Map();
+  items.forEach(it => { const k = keyFn(it); if (!m.has(k)) m.set(k, []); m.get(k).push(it); });
+  return Array.from(m.entries()).map(e => ({ name:e[0], items:e[1] }));
+}
+
+/* ---------- 页 1 · 文件夹 ---------- */
+function buildFolders(){
+  const p = PAGE_MAP.folders;
+  const list = pick(DATA.folders, ['name','path']);
+  const groups = groupBy(list, f => folderGroup(f.path))
+    .sort((a, b) => b.items.length - a.items.length || a.name.localeCompare(b.name, 'zh'));
+  let k = 0;
+  let html = pageHead(p, list.length
+    ? list.length + ' 个入口 · 按父目录自动归为 ' + groups.length + ' 组' : '按父目录自动归类');
+  /* 这一页是应用的主用途（常用项目文件夹一键直达），但"增 / 改 / 删"三件事
+     原先一个可见入口都没有 —— 全挂在右键上。右键菜单是个没人会猜的交互，
+     等于这页只能看不能维护。所以：每行给一个 ⋯（走同一份右键菜单），
+     页尾给一个「新增文件夹」。
+     空列表也要挂上新增按钮：删完之后没有入口，这一页就永久空了。 */
+  const addRow = '<div class="acts-row"><button data-act="folder-new">'
+    + IC('plus', 14) + '新增文件夹</button></div>';
+  if (!list.length) return html + emptyBox('还没有文件夹入口\n加一个常去的项目目录') + addRow;
+  html += groups.map(g => {
+    const cards = g.items.map(f =>
+      '<div class="row" data-kind="folder" data-path="' + esc(f.path) + '"'
+      + ' style="--i:' + Math.min(k++, 9) + '"' + stg() + '>'
+      + '<div class="ic">' + IC('folder', 17) + '</div>'
+      + '<div class="tx"><div class="nm">' + esc(f.name) + '</div><div class="hs">' + esc(parentOf(f.path)) + '</div></div>'
+      + '<button class="ctx-more" data-act="ctx-open" title="编辑 / 删除">' + IC('more', 13) + '</button>'
+      + '</div>').join('');
+    /* 这一组的父目录：加进这一组 = 路径落在它下面。
+       分组本来就是按父目录派生的，所以"加进来"这件事只能表达成
+       "路径填在这个目录下" —— 预填它，并在保存后如实回报落在哪一组，
+       省得用户填完发现跑到了别处还不知道为什么。 */
+    const dir = parentOf(g.items[0].path);
+    const ctx = { dir:dir, group:g.name };
+    return gcard(g.name, g.items.length, cards, { icon:'folder', addKind:'folder', addCtx:ctx });
+  }).join('');
+  return html + addRow;
+}
+
+/* ---------- 页 2 · 网址 ---------- */
+function buildLinks(){
+  const p = PAGE_MAP.links;
+  const list = pick(DATA.links, ['name','host','url']);
+  const groups = groupBy(list, l => linkGroup(l));
+  let k = 0;
+  let html = pageHead(p, list.length
+    ? list.length + ' 个站点 · 按用途自动归为 ' + groups.length + ' 组' : '按用途自动归类');
+  const addRow = '<div class="acts-row"><button data-act="link-new">'
+    + IC('plus', 14) + '新增网址</button></div>';
+  if (!list.length) return html + emptyBox('还没有网址入口\n加一个常去的平台或文档站') + addRow;
+  html += groups.map(g => {
+    const cards = g.items.map(l =>
+      '<div class="row" data-kind="link" data-url="' + esc(l.url) + '" data-host="' + esc(l.host) + '"'
+      + ' style="--i:' + Math.min(k++, 9) + '"' + stg() + '>'
+      + '<div class="ic">' + IC('globe', 17) + '</div>'
+      + '<div class="tx"><div class="nm">' + esc(l.name) + '</div><div class="hs">' + esc(l.host) + '</div></div>'
+      + '<button class="ctx-more" data-act="ctx-open" title="编辑 / 删除">' + IC('more', 13) + '</button>'
+      + '</div>').join('');
+    /* 网址的分组是拿域名匹配正则判出来的，没法预填一个"父目录"。
+       能做的是在表单里写清这一组收什么域名 —— 用户填完才知道会落到哪，
+       比填完被静默换个组强。 */
+    return gcard(g.name, g.items.length, cards, { icon:'globe', addKind:'link', addCtx:{ group:g.name } });
+  }).join('');
+  return html + addRow;
+}
+
+/* ---------- 页 3 · 收藏箱 ---------- */
+function buildClip(){
+  const p = PAGE_MAP.clip;
+  const s = qq(state.query);
+  const base = DATA.clip.filter(c => !s || qq(c.title + ' ' + c.desc + ' ' + c.name + ' ' + c.tags.join(' ')).indexOf(s) >= 0);
+  const plats = [];
+  base.forEach(c => { if (plats.indexOf(c.name) < 0) plats.push(c.name); });
+  if (state.clipFilter !== '全部' && plats.indexOf(state.clipFilter) < 0) state.clipFilter = '全部';
+  const chips = ['全部'].concat(plats).map(n => {
+    const cnt = n === '全部' ? base.length : base.filter(c => c.name === n).length;
+    const src = n === '全部' ? null : DATA.clip.find(c => c.name === n);
+    const c = src ? ACC[src.slot] : ACC[0];
+    return '<button class="chip' + (state.clipFilter === n ? ' on' : '') + '" data-clipfilter="' + esc(n) + '"'
+      + ' style="' + vars(c) + '">' + esc(n) + '<span class="n">' + cnt + '</span></button>';
+  }).join('');
+
+  const list = visibleClips();
+  const total = DATA.clip.length;
+  let html = pageHead(p, (state.query || state.clipFilter !== '全部')
+      ? '筛选命中 ' + list.length + ' / ' + total + ' 条'
+      : '已收藏 ' + total + ' 条 · 按平台自动归类')
+    + '<div class="clip-add">' + IC('link', 15)
+    + '<input id="clipInput" type="text" placeholder="粘贴公众号 / 小红书 / GitHub 链接，回车即归类" autocomplete="off" spellcheck="false">'
+    + '<span class="hint" id="clipHint"></span></div>'
+    + '<div class="chips">' + chips + '</div>';
+
+  /* 「新增收藏」这条入口是后补的：收藏箱原来只能靠粘贴链接/复制触发，
+     整页一个"手动加"都没有 —— 想补一条早先收藏的文章，没有地方可下手。
+     恢复默认那条路（设置页）也确实能填回来，但那是"清空再灌演示数据"，
+     不能当新增用。 */
+  const addRow = '<div class="acts-row"><button data-act="clip-new">'
+    + IC('plus', 14) + '新增收藏</button></div>';
+  if (!list.length) return html + emptyBox(state.query ? '没有匹配的收藏'
+    : (state.clipFilter === '全部' ? '收藏箱还是空的\n把链接粘到上面那一栏试试' : '这个平台下暂时没有收藏')) + addRow;
+
+  /* 收藏箱条目的信息分层：
+       首行 = 平台方块 + 平台名 + 内容类型
+       次行 = 标题（2 行截断）
+       再次 = 描述（2 行截断）
+       底行 = 标签（左） + 时间（右，margin-left:auto）
+     两个刻意的处理：
+       · 时间不再跟平台名挤在首行 —— 旧版时间在首行右对齐，正好被右上角
+         的删除按钮盖住，hover 时两者重叠。
+       · 标签超过 3 个折叠成 +N，避免标签换行把卡片撑得高矮不一。
+     外层走 gcard(..., {grid:'wide'})：面板 580px 下单列，正文约 400px
+     （旧版两列只有约 154px，这是收藏箱"布局不友好"的主因）。 */
+  const card = (it, i) => {
+    const tags = it.tags || [];
+    const shown = tags.slice(0, 3).map(t => '<span class="tg">' + esc(t) + '</span>').join('')
+      + (tags.length > 3 ? '<span class="tg more">+' + (tags.length - 3) + '</span>' : '');
+    return '<div class="cclip" data-kind="clip" data-url="' + esc(it.url) + '"'
+      + ' style="' + vars(ACC[it.slot]) + ';--i:' + Math.min(i, 9) + '"' + stg() + '>'
+      + '<div class="hd"><span class="mono">' + esc(it.ab) + '</span>'
+      + '<span class="src">' + esc(it.name) + '</span>'
+      + '<span class="kind">' + esc(it.kind) + '</span></div>'
+      + '<div class="ti">' + esc(it.title) + '</div>'
+      + (it.desc ? '<div class="ds">' + esc(it.desc) + '</div>' : '')
+      + '<div class="ft"><div class="tgs">' + shown + '</div>'
+      + '<span class="tm">' + esc(it.time) + '</span>'
+      /* 右上角那个 x 只管删除，改标题 / 备注 / 标签没有入口。
+         ⋯ 挂在底行右侧，不跟 x 抢同一个角（旧版时间被删除按钮盖住过）。 */
+      + '<button class="ctx-more" data-act="ctx-open" title="编辑 / 删除">' + IC('more', 12) + '</button></div>'
+      + '<button class="x" data-act="clip-del" data-url="' + esc(it.url) + '" title="移除">' + IC('x', 11) + '</button>'
+      + '</div>';
+  };
+
+  /* 平台筛选态下只有一张卡（就是那个平台），也给它挂上「+」——
+     否则筛到某个平台想再补一条，还得先切回"全部"。 */
+  if (state.clipFilter !== '全部')
+    return html + gcard(state.clipFilter, list.length, list.map(card).join(''),
+      { icon:'bookmark', grid:'wide', addKind:'clip', addCtx:{ group:state.clipFilter } }) + addRow;
+  let k = 0;
+  html += groupBy(list, c => c.name).map(g =>
+    gcard(g.name, g.items.length, g.items.map(c => card(c, k++)).join(''),
+      { icon:'bookmark', grid:'wide', addKind:'clip', addCtx:{ group:g.name } })).join('');
+  return html + addRow;
+}
+
+/* ---------- 页 4 · 暂存区（拟物纸质文件夹） ---------- */
+function buildStaging(){
+  const p = PAGE_MAP.staging;
+  const list = pick(DATA.staging, ['name','path']);
+  let html = pageHead(p, list.length === DATA.staging.length
+    ? '引用式记录 · 共 ' + DATA.staging.length + ' 个文件'
+    : '筛选命中 ' + list.length + ' / ' + DATA.staging.length + ' 个文件');
+  if (!list.length) return html + '<div class="bd-empty">暂存区是空的\n把文件拖到这个面板里试试</div>';
+  const cards = list.map((f, k) => {
+    const e = extOf(f.name);
+    const glyph = { sheet:'sheet', doc:'file', pdf:'file', slide:'slide', zip:'zip', img:'image', model:'model' }[fileKind(f.name)];
+    return '<div class="fcard" data-kind="file" data-path="' + esc(f.path) + '" draggable="true"'
+      + ' style="' + vars() + ';--i:' + Math.min(k, 9) + '"' + stg() + '>'
+      + '<button class="fcard-nt" data-act="file-del" data-path="' + esc(f.path) + '" title="移出暂存">' + IC('x', 11) + '</button>'
+      + '<div class="fcard-ic"><span class="ic">' + IC(glyph, 24) + '</span></div>'
+      + '<div class="fcard-bot"><div class="fcard-nm">' + esc(f.name) + '</div>'
+      + '<div class="fcard-meta"><span class="ext">' + esc((e || 'file').toUpperCase()) + '</span>'
+      + '<span class="dot"></span><span>' + fmtSize(f.size) + '</span>'
+      + '<span class="tag">' + esc(f.mode) + '</span>'
+      /* 暂存项的名字和路径都能改（文件挪了位置，用户比我们清楚），
+         但原先只有右上角一个"移出暂存"，改的入口藏在右键里。 */
+      + '<button class="ctx-more" data-act="ctx-open" title="编辑 / 移出">' + IC('more', 12) + '</button></div></div></div>';
+  }).join('');
+  return html + '<div class="dz-wrap"><div class="dropzone" id="dropzone"><div class="cgrid">' + cards + '</div></div></div>'
+    + '<div class="dz-hint">拖入即暂存 · 点击卡片即预览 · 原文件不会被移动或删除</div>';
+}

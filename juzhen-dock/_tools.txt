@@ -1,0 +1,791 @@
+/* ================================================================
+   四·补、功能拓展板块
+   ----------------------------------------------------------------
+   这一批是"真正需要从边缘面板出发"的功能 —— 判断标准有三条：
+     1. 触发要快到不打断当前思路（否则就该放在浏览器/IDE 里）
+     2. 跨应用编排，单个桌面快捷方式做不到
+     3. 使用频率高到值得占一个固定入口
+   七个板块：今日 / 场景 / 片段 / 换算 / 速记 / 贴图 / 速问
+   ================================================================ */
+const TOOL = {
+
+/* ---------- 终端标签（元数据）----------
+   只存"标签长什么样"：名字、Shell、上次所在的目录。
+   进程活在主进程里，按 id 对应，**不进存档** —— 把 pid 存进 JSON
+   只会在下次启动时变成一个指向已死进程的悬空引用。
+   seed 是空数组而且带 noSeed 标记：终端没有任何"出厂演示标签"是合理的，
+   而设置页那一行的「恢复示例」不能对着空 seed 报一句"已恢复为演示数据"。 */
+terms: [],
+
+/* ---------- 今日：待办 + 最近 ---------- */
+todos: [
+  { id:'t1', text:'完成 WPTC 热量分配标定表 v3 评审',    done:false, tag:'标定',   when:'今天' },
+  { id:'t2', text:'HIL 台架预约：除霜工况回归测试',      done:false, tag:'测试',   when:'今天' },
+  { id:'t3', text:'把 PMV 修正系数同步给算法组',        done:true,  tag:'协同',   when:'今天' },
+  { id:'t4', text:'SWRS v3.0 需求条目补充（FR-04~07）',  done:false, tag:'需求',   when:'明天' },
+  { id:'t5', text:'离线 RL 策略第 2000 回合结果整理',     done:false, tag:'算法',   when:'本周' },
+  { id:'t6', text:'A2L 地址映射校验脚本联调',            done:false, tag:'标定',   when:'本周' }
+],
+recent: [
+  { name:'热舒适报点数据_0912.csv', path:'E:\\Projects\\Thermal\\Data\\热舒适报点数据_0912.csv', at:'12 分钟前' },
+  { name:'WPTC_热量分配_标定表.xlsx', path:'D:\\Calibration\\2026\\WPTC_热量分配_标定表.xlsx', at:'1 小时前' },
+  { name:'热管理算法', path:'E:\\Projects\\Thermal\\Algorithm', at:'2 小时前' },
+  { name:'空调控制策略_SWRS_v2.3.docx', path:'E:\\Projects\\Thermal\\Requirements\\空调控制策略_SWRS_v2.3.docx', at:'昨天' }
+],
+
+/* ---------- 场景：一次切换一整组工作环境 ----------
+   acts 里的每一项都是桌面版真实会执行的动作：
+     folder 打开目录 / link 打开网址 / file 打开文件 / cmd 执行命令   */
+scenes: [
+  { id:'cal', name:'标定调试', desc:'标定数据目录 + CANoe + A2L + 在线表格',
+    acts:[ { k:'folder', v:'D:\\Calibration\\2026', t:'标定数据 2026' },
+           { k:'file',   v:'D:\\Calibration\\2026\\WPTC_热量分配_标定表.xlsx', t:'WPTC 热量分配标定表' },
+           { k:'cmd',    v:'canoe.exe -cfg Thermal_HIL.cfg', t:'启动 CANoe 工程' },
+           { k:'link',   v:'https://docs.qq.com', t:'标定记录表' } ] },
+  { id:'hil', name:'HIL 测试', desc:'HIL 工程目录 + CI 平台 + 需求管理',
+    acts:[ { k:'folder', v:'E:\\Projects\\Thermal\\HIL', t:'HIL 工程' },
+           { k:'link',   v:'https://jenkins.internal', t:'CI 构建平台' },
+           { k:'link',   v:'https://req.internal', t:'需求管理平台' },
+           { k:'cmd',    v:'run_hil.bat -case defrost_regression', t:'除霜回归用例' } ] },
+  { id:'mbd', name:'算法建模', desc:'Simulink 模型 + 算法源码 + 文献',
+    acts:[ { k:'folder', v:'E:\\Projects\\Thermal\\Models', t:'Simulink 模型' },
+           { k:'folder', v:'E:\\Projects\\Thermal\\Algorithm', t:'热管理算法' },
+           { k:'cmd',    v:'matlab -batch "run_mil_tests"', t:'批量跑 MIL' },
+           { k:'link',   v:'https://arxiv.org', t:'arXiv' } ] },
+  { id:'doc', name:'文档编写', desc:'需求规格 + 论文库 + 团队知识库',
+    acts:[ { k:'folder', v:'E:\\Projects\\Thermal\\Requirements', t:'需求规格' },
+           { k:'folder', v:'D:\\Docs\\Papers', t:'论文库' },
+           { k:'link',   v:'https://wiki.internal', t:'团队知识库' },
+           { k:'link',   v:'https://autosar.org', t:'AUTOSAR 规范' } ] }
+],
+
+/* ---------- 片段与命令：可复制、带变量占位 ----------
+   {{}} 里的名字是可替换变量，桌面版复制前会弹输入框逐个填。      */
+snips: [
+  { id:'s1', g:'公式与代码', lang:'MATLAB', name:'PMV 计算核心式',
+    text:'PMV = (0.303 * exp(-0.036 * {{M}}) + 0.028) * L;\nPPD = 100 - 95 * exp(-0.03353 * PMV^4 - 0.2179 * PMV^2);',
+    vars:['M'] },
+  { id:'s2', g:'公式与代码', lang:'Python', name:'pmv() 函数签名',
+    text:'def pmv(m, clo, ta, tr, vel, rh):\n    """ISO 7730 —— 返回 (pmv, ppd)"""\n    return (0.303 * exp(-0.036 * m) + 0.028) * load',
+    vars:[] },
+  { id:'s3', g:'公式与代码', lang:'C',      name:'标定量读取模板',
+    text:'Std_ReturnType {{Swc}}_Read_{{Cal}}(float32 *value)\n{\n    return Rte_Read_{{Swc}}_{{Cal}}_value(value);\n}',
+    vars:['Swc','Cal'] },
+  { id:'s4', g:'公式与代码', lang:'A2L',    name:'标定量描述块',
+    text:'/begin CHARACTERISTIC {{Name}}\n  "标定说明"\n  VALUE 0x{{Addr}} {{Lsb}} 0 {{Max}}\n/end CHARACTERISTIC',
+    vars:['Name','Addr','Lsb','Max'] },
+  { id:'s5', g:'终端命令',  lang:'Shell',   name:'拉取并构建主干',
+    text:'git fetch origin && git rebase origin/main && mbd_build.bat --target 8295',
+    vars:[] },
+  { id:'s6', g:'终端命令',  lang:'Shell',   name:'批量跑 MIL 测试',
+    text:'matlab -batch "addpath(genpath(\'.\')); run_mil_tests(\'{{Model}}\')"',
+    vars:['Model'] },
+  { id:'s7', g:'终端命令',  lang:'Shell',   name:'生成 A2L 并校验地址',
+    text:'a2l_gen.exe -i {{Model}}.arxml -o {{Model}}.a2l && a2l_check.exe {{Model}}.a2l',
+    vars:['Model'] },
+  { id:'s8', g:'文本模板',  lang:'Markdown', name:'需求条目模板',
+    text:'**{{ID}}** 系统应在{{条件}}时，{{动作}}，{{性能指标}}。\n- 来源：{{来源}}\n- 验证方式：{{验证}}',
+    vars:['ID','条件','动作','性能指标','来源','验证'] },
+  { id:'s9', g:'文本模板',  lang:'Markdown', name:'会议决议速记',
+    text:'## {{议题}}\n- 结论：{{结论}}\n- 责任人：{{责任人}} · 截止：{{日期}}\n- 待确认：{{遗留}}',
+    vars:['议题','结论','责任人','日期','遗留'] }
+],
+
+/* ---------- 速记 ---------- */
+notes: [
+  { id:'n1', text:'夏季标定的 PMV 修正系数不能套到冬季——乘员服装热阻差了近 1 clo，实测偏差能到 0.4。', at:'09:41', day:'今天', tag:'标定' },
+  { id:'n2', text:'除霜判定加一条：日照强度 > 600 W/m² 时不进除霜，避免暴晒后误触发。', at:'11:08', day:'今天', tag:'算法' },
+  { id:'n3', text:'A2L 地址映射必须在生成后立刻校验，上次错位导致整轮回读数据作废。', at:'昨天 16:22', day:'昨天', tag:'教训' },
+  { id:'n4', text:'8295 平台上控制算法单次执行 3.2 ms，10 ms 周期还剩余量，可以加自适应修正。', at:'9 月 13 日', day:'更早', tag:'性能' }
+],
+
+/* ---------- 贴图钉屏 ----------
+   桌面版由 Electron 无边框置顶窗口实现，可拖动、缩放、调透明度。 */
+shots: [
+  { id:'p1', t:'热舒适曲线_0912.png', w:1260, h:720, op:100, at:'10 分钟前' },
+  { id:'p2', t:'WPTC 分配系数趋势', w:980,  h:560, op:85,  at:'1 小时前' },
+  { id:'p3', t:'CANoe 报文片段', w:760,  h:420, op:100, at:'昨天' }
+],
+
+/* ---------- AI 速问 ----------
+   这三条是**演示回答**，不是真跑模型跑出来的。id 是后补的：
+   配了模型之后历史会变成真正的用户数据，而原来靠数组下标（data-i）
+   定位条目 —— unshift 一条新记录就把所有下标挪一位，于是"存入速记"
+   会存到隔壁那条去。落盘 + 稳定 id 之后才不会串。
+   带 state:'demo' 的三条是出厂演示内容，页面上会打标并可一键清掉 ——
+   之前它们既不能删、也不落盘，删了不生效、重开又回来。 */
+asks: [
+  { id:'a1', sess:'ssDemo1', q:'PMV 模型在 Simulink 里怎么落地？', a:'按 ISO 7730 拆成四个子系统：① 湿空气参数（Magnus 公式算饱和水汽压）② 服装表面温度迭代解（tcl 用不动点迭代，10 次以内收敛）③ 热负荷 L 的六项累加 ④ PMV/PPD 输出。迭代部分建议用 While Iterator Subsystem，或者直接写成 MATLAB Function 块——后者在 8295 上代码生成更干净。', at:'演示', model:'', state:'demo' },
+  { id:'a2', sess:'ssDemo1', q:'A2L 地址映射校验应该放在流程哪一步？', a:'放在 A2L 生成之后、标定开始之前，作为 CI 的一个强制门禁。校验内容包括：地址区间不重叠、数据类型与 ECU 端一致、转换公式与 Simulink 定点配置匹配。', at:'演示', model:'', state:'demo' },
+  { id:'a3', sess:'ssDemo2', q:'离线强化学习的策略怎么保证实车安全性？', a:'三层约束：① 动作空间在环境里就做裁剪（压缩机转速、风门开度都设硬限幅）② 训练时加入安全惩罚项，越界给大负奖励 ③ 部署前用规则层做兜底，策略输出超出经验包络时回退到基线控制。', at:'演示', model:'', state:'demo' }
+],
+/* ---------- 问答会话（元数据）----------
+   一段对话要有自己的名字、自己的档位、自己「要不要读我的资料」的选择，
+   所以它是一条**记录**，不是从问答里现场分出来的组：
+   现场分组永远分不出「还没问过的新会话」，也存不住那两个开关。 */
+askSess: [
+  { id:'ssDemo1', title:'演示 · PMV 与热舒适', at:'09:20', mode:'fast', kb:false, only:false },
+  { id:'ssDemo2', title:'演示 · 空调控制策略', at:'09:05', mode:'deep', kb:false, only:false }
+],
+askTpl: [
+  { id:'q1', t:'解释这段 A2L / 标定量', ic:'db' },
+  { id:'q2', t:'把需求转成测试用例', ic:'check' },
+  { id:'q3', t:'推导这个控制逻辑的边界', ic:'route' },
+  { id:'q4', t:'检查这段代码的 MISRA 合规', ic:'code' }
+]
+};
+
+/* ================================================================
+   湿空气与热舒适计算 —— ISO 7730 / ASHRAE 55 工程实现
+   ----------------------------------------------------------------
+   全部是可直接用于工程计算的公式，不是占位。
+   ================================================================ */
+const PSY = {
+  /* 饱和水汽压 kPa —— Magnus 公式，ta 单位 ℃ */
+  es: t => 0.6108 * Math.exp(17.27 * t / (t + 237.3)),
+  /* 水汽分压 kPa */
+  pv: (ta, rh) => PSY.es(ta) * rh / 100,
+  /* 含湿量 kg/kg 干空气 */
+  d:  (ta, rh, p) => { const e = PSY.pv(ta, rh); return 0.622 * e / ((p || 101.325) - e); },
+  /* 露点温度 ℃ */
+  td: (ta, rh) => { const e = Math.max(PSY.pv(ta, rh), 1e-6); const v = Math.log(e / 0.6108);
+                    return 237.3 * v / (17.27 - v); },
+  /* 比焓 kJ/kg 干空气 */
+  h:  (ta, rh, p) => { const dd = PSY.d(ta, rh, p); return 1.006 * ta + dd * (2501 + 1.86 * ta); },
+  /* 相对湿度 %（由露点反推，用于结露风险判断） */
+  rhByTd: (ta, tdv) => Math.min(100, Math.max(0, PSY.es(tdv) / PSY.es(ta) * 100))
+};
+
+/* PMV / PPD —— Fanger 模型，ISO 7730 附录 D 的实现
+   服装表面温度 tcl 用不动点迭代求解，带 0.5 松弛因子避免振荡。 */
+function pmvSolve(ta, tr, vel, rh, met, clo){
+  const M   = met * 58.15;      /* met → W/m² */
+  const W   = 0;                /* 外部做功，坐姿办公取 0 */
+  const Icl = clo * 0.155;      /* clo → m²·K/W */
+  const pa  = PSY.pv(ta, rh);   /* kPa */
+  const fcl = Icl <= 0.078 ? 1 + 1.29 * Icl : 1.05 + 0.645 * Icl;
+
+  const hcOf = t => Math.max(12.1 * Math.sqrt(Math.max(vel, 0.05)),
+                             2.38 * Math.pow(Math.abs(t - ta), 0.25));
+  /* tcl 用**二分法**而不是不动点迭代。
+     不动点迭代在服装热阻大（≥1.5 clo）时残差斜率 > 1，会在两个值之间来回跳，
+     实测 clo=2.0 / ta=-5℃ 时直接发散到 ±Infinity，最后 Inf-Inf 得到 NaN。
+     残差 g(t) 关于 t 单调递减，二分法 60 次可精确到 1e-12，且永不发散。 */
+  const g = t => {
+    const h  = hcOf(t);
+    const rd = 3.96e-8 * fcl * (Math.pow(t + 273, 4) - Math.pow(tr + 273, 4));
+    return 35.7 - 0.028 * (M - W) - Icl * (rd + fcl * h * (t - ta)) - t;
+  };
+  let lo = Math.max(ta - 40, -70), hi = 50;
+  for (let i = 0; i < 60; i++){ const mid = (lo + hi) / 2; if (g(mid) > 0) lo = mid; else hi = mid; }
+  const tcl = (lo + hi) / 2;
+
+  hc = hcOf(tcl);
+  const rad    = 3.96e-8 * fcl * (Math.pow(tcl + 273, 4) - Math.pow(tr + 273, 4));
+  const conv   = fcl * hc * (tcl - ta);
+  /* 注意 pa 的单位：ISO 7730 的 PMV 方程里 pa 取 **Pa**，不是 kPa。
+     （皮肤扩散项 3.05e-3·(5733−6.99(M−W)−pa) 与呼吸项 1.7e-5·M·(5867−pa)
+      的常数 5733 / 5867 都是按 Pa 标定的。）用 kPa 会多算约 6 W/m² 散热，
+     PMV 整体偏冷近 0.4 级。 */
+  const paPa = pa * 1000;
+  const L = (M - W)
+    - 3.05e-3 * (5733 - 6.99 * (M - W) - paPa)
+    - 0.42   * ((M - W) - 58.15)
+    - 1.7e-5 * M * (5867 - paPa)
+    - 0.0014 * M * (34 - ta)
+    - rad - conv;
+  const pmv = (0.303 * Math.exp(-0.036 * M) + 0.028) * L;
+  const ppd = 100 - 95 * Math.exp(-0.03353 * Math.pow(pmv, 4) - 0.2179 * pmv * pmv);
+  return { pmv:pmv, ppd:ppd, tcl:tcl, hc:hc, pa:pa, fcl:fcl };
+}
+/* PMV 七级热感觉标度 */
+const pmvWord = v => v < -2.5 ? '冷' : v < -1.5 ? '凉' : v < -0.5 ? '稍凉'
+  : v <= 0.5 ? '适中（热中性）' : v <= 1.5 ? '稍暖' : v <= 2.5 ? '暖' : '热';
+
+/* ================================================================
+   单位换算表
+   ----------------------------------------------------------------
+   每组选一个基准单位，用线性变换 to/from 基准。
+   lin(a,b)：to(v) = v*a + b（该单位 → 基准），from(v) = (v-b)/a。
+   ================================================================ */
+const lin = (a, b) => ({ to: v => v * a + b, from: v => (v - b) / a });
+const CONV = [
+  { id:'temp', name:'温度', base:'℃', def:25,
+    u:{ '℃':lin(1,0), '℉':lin(5/9, -160/9), 'K':lin(1, -273.15) } },
+  { id:'pres', name:'压力', base:'kPa', def:1800,
+    u:{ 'kPa':lin(1,0), 'bar':lin(100,0), 'MPa':lin(1000,0), 'psi':lin(6.894757,0), 'mmHg':lin(0.133322,0) } },
+  { id:'pow',  name:'功率 / 热量', base:'W', def:4500,
+    u:{ 'W':lin(1,0), 'kW':lin(1000,0), 'BTU/h':lin(0.293071,0), 'kcal/h':lin(1.163,0), '冷吨':lin(3516.85,0) } },
+  { id:'flow', name:'体积流量', base:'L/min', def:12,
+    u:{ 'L/min':lin(1,0), 'L/s':lin(60,0), 'm³/h':lin(16.6667,0), 'm³/s':lin(60000,0), 'US gal/min':lin(3.78541,0) } },
+  { id:'vel',  name:'风速', base:'m/s', def:0.3,
+    u:{ 'm/s':lin(1,0), 'km/h':lin(0.277778,0), 'ft/min':lin(0.00508,0), 'mph':lin(0.44704,0) } },
+  { id:'torq', name:'扭矩', base:'N·m', def:28,
+    u:{ 'N·m':lin(1,0), 'kgf·m':lin(9.80665,0), 'lbf·ft':lin(1.355818,0), 'lbf·in':lin(0.112985,0) } },
+  { id:'en',   name:'能量', base:'kJ', def:3600,
+    u:{ 'kJ':lin(1,0), 'J':lin(0.001,0), 'kWh':lin(3600,0), 'kcal':lin(4.1868,0), 'BTU':lin(1.05506,0) } }
+];
+const convGroup = id => CONV.find(g => g.id === id) || CONV[0];
+
+/* ================================================================
+   七个板块的构建器
+   ================================================================ */
+
+/* ---------- 今日 ---------- */
+function buildToday(){
+  const p = PAGE_MAP.today;
+  const undone = TOOL.todos.filter(t => !t.done).length;
+  let html = pageHead(p, (undone ? '还有 ' + undone + ' 项待办' : '今日待办已清空') + ' · ' + TOOL.recent.length + ' 项最近使用');
+
+  /* 这三格原来有两格是写死的（12 和 3）。首页最容易被盯着看，
+     摆着永远不动的数字比空着更可疑 —— 换成三项都能当场算出来的指标。 */
+  html += '<div class="td-stat">'
+    + statCell('待办剩余', undone, 'check', ACC[0])
+    + statCell('已完成', TOOL.todos.filter(t => t.done).length, 'sparkle', ACC[3])
+    + statCell('剪切记录', DATA.board.length, 'board', ACC[4])
+    + '</div>';
+
+  const todoCards = TOOL.todos.map((t, i) =>
+    '<div class="todo' + (t.done ? ' done' : '') + '" data-act="todo-toggle" data-id="' + t.id + '"'
+    + ' data-kind="todo"'
+    + ' style="--i:' + Math.min(i, 9) + '"' + stg() + '>'
+    + '<span class="td-ck">' + IC('check', 11) + '</span>'
+    + '<span class="td-tx">' + esc(t.text) + '</span>'
+    + '<span class="td-tag">' + esc(t.tag) + '</span>'
+    + '<span class="td-when">' + esc(t.when) + '</span>'
+    + '<button class="ctx-more" data-act="ctx-open" title="编辑 / 删除">' + IC('more', 13) + '</button>'
+    + '</div>').join('');
+  html += gcard('今日待办', TOOL.todos.length, todoCards, { icon:'check', one:true });
+  /* 待办以前只能打勾：不能加、不能改、不能删。这三样缺任何一样，
+     这个列表都替不了任何东西 —— 用户迟早会退回记事本。 */
+  html += '<div class="acts-row"><button data-act="todo-new">' + IC('plus', 14) + '新增待办</button></div>';
+
+  /* 这一栏原来挂的是 data-kind="file"，和暂存区的文件是同一种 kind ——
+     点击处理去 DATA.staging 里找，而最近使用是一条独立的记录，永远找不到，
+     于是点了什么都不会发生。给它自己的 kind。
+     挂 ⋯ 只为了"移除"一项：这条日志没有可改的东西，但没有删除入口时，
+     误记进来的路径只能等被新记录挤掉。 */
+  const recCards = TOOL.recent.map((r, i) =>
+    '<div class="row" data-kind="recent" data-path="' + esc(r.path) + '"'
+    + ' style="--i:' + Math.min(i, 9) + '"' + stg() + '>'
+    + '<div class="ic">' + IC(r.kind === 'folder' ? 'folder'
+        : (fileKind(r.name) === 'sheet' ? 'sheet' : 'file'), 17) + '</div>'
+    + '<div class="tx"><div class="nm">' + esc(r.name) + '</div><div class="hs">' + esc(atText(r.at)) + '</div></div>'
+    + '<button class="ctx-more" data-act="ctx-open" title="打开 / 定位 / 移除">' + IC('more', 13) + '</button>'
+    + '</div>').join('');
+  html += gcard('最近使用', TOOL.recent.length, recCards, { icon:'clock' });
+
+  html += '<div class="td-tip">' + IC('sparkle', 15)
+    + '<span>唤出后点侧栏第一项「今日」就能看到待办与最近文件，'
+    + '当前场景显示在顶部，切换场景只需一次点击。</span></div>';
+  return html;
+}
+function statCell(label, n, icon, c){
+  return '<div class="td-cell" style="' + vars(c) + '"><span class="td-cico">' + IC(icon, 15) + '</span>'
+    + '<span class="td-cn">' + n + '</span><span class="td-cl">' + esc(label) + '</span></div>';
+}
+
+/* ---------- 场景 ---------- */
+function buildScene(){
+  const p = PAGE_MAP.scene;
+  const cur = state.scene;
+  const curS = TOOL.scenes.find(s => s.id === cur);
+  let html = pageHead(p, '当前场景：' + ((curS || {}).name || '未选择')
+    + ' · 一次点击切换整组工作环境');
+  /* 这段文案原先是"桌面版会真正执行这些动作：打开目录、唤起应用、执行命令"，
+     而实际切场景只弹了一句 toast —— acts 从头到尾没人读过。现在它是真的了，
+     所以可以照实写；没做到的那部分（比如命令一定会成功）仍然不承诺。 */
+  html += '<div class="dz-hint">' + (DESK
+    ? '点卡片会依次执行下面这组动作：目录用资源管理器打开、文件用默认程序打开、'
+      + '网址交给浏览器、命令在本机跑。带命令的场景会先问一次。'
+      + '点单个动作只跑那一个；动作右边的 ⋯ 可以把它的目标换成你自己的路径，或者删掉它。'
+    : '这里演示场景编排：一组目录 / 应用 / 命令打包成一次切换。浏览器里不执行。') + '</div>';
+
+  const addRow = '<div class="acts-row"><button data-act="scene-new">'
+    + IC('plus', 14) + '新建场景</button></div>';
+  if (!TOOL.scenes.length)
+    return html + emptyBox('还没有场景\n建一个，把一组常用目录打包进去') + addRow;
+
+  /* 上一次执行的结果。toast 只来得及说一句话，而"哪个动作没成、为什么"
+     应该留在页面上 —— 否则用户只能靠反复点来猜。 */
+  if (lastSceneRun && lastSceneRun.id === cur){
+    html += '<div class="sc-res' + (lastSceneRun.bad ? ' bad' : '') + '">'
+      + '<span class="sc-res-h">' + IC(lastSceneRun.bad ? 'x' : 'check', 12)
+      + '本次执行：' + lastSceneRun.ok + ' 个已就位'
+      + (lastSceneRun.bad ? ' · ' + lastSceneRun.bad + ' 个没成' : '') + '</span>'
+      + (lastSceneRun.detail.length
+          ? '<div class="sc-res-l">' + lastSceneRun.detail.map(d =>
+              '<div class="sc-res-i"><span class="sc-res-t">' + esc(d.t) + '</span>'
+              + '<span class="sc-res-e">' + esc(d.err) + '</span></div>').join('') + '</div>'
+          : '')
+      + '</div>';
+  }
+
+  const cards = TOOL.scenes.map((s, i) => {
+    const on = s.id === cur;
+    const miss = s.acts.filter(a => sceneMiss(a)).length;
+    const acts = s.acts.map((a, j) => {
+      const m = ACT_META[a.k] || ACT_META.folder;
+      const bad = sceneMiss(a);
+      /* 动作条上那个「⋯」是补上的：在此之前，场景里单个动作**只能靠右键**
+         改（换成我选的目录 / 改网址 / 改命令 / 改显示名 / 删掉这个动作）。
+         "只有右键 = 没有入口"这条规矩在卡片、列表上都立过，动作条当时漏了
+         —— 于是加进去的动作改不动，看起来就像个死物。它必须是常态可见的，
+         所以不进 hover、不设透明度。 */
+      /* 动作条自己也能点：点一下就只跑**这一个**动作。
+         在此之前点动作条会冒泡到卡片上的 scene-go，把整组动作全跑一遍 ——
+         一个写着「打开 Thermal 目录」的小标签点下去却开了四个目录，
+         这不是用户能猜到的事。整组执行留给卡片本身（点头部/空白处）。 */
+      return '<div class="sc-act' + (bad ? ' miss' : '') + '" data-act="scene-one"'
+        + ' data-kind="sceneAct"'
+        + ' data-sid="' + s.id + '" data-ai="' + j + '"'
+        + ' title="' + (bad
+            ? '本机找不到这个目标 · 右边的 ⋯ 可以换成你自己的路径'
+            : '点一下只执行这一个；右边的 ⋯ 可改成别的目标或删掉') + '>'
+        + '<span class="sc-ai">' + IC(m.ic, 12) + '</span>'
+        + '<span class="sc-at">' + esc(a.t) + '</span>'
+        + (bad ? '<span class="sc-aw">找不到</span>' : '')
+        + '<button class="ctx-more" data-act="ctx-open" title="改这个动作 / 删掉它">'
+        + IC('more', 12) + '</button>'
+        + '</div>';
+    }).join('');
+    return '<div class="scard' + (on ? ' on' : '') + '" data-act="scene-go" data-id="' + s.id + '"'
+      + ' data-kind="sceneCard"'
+      + ' style="--i:' + Math.min(i, 9) + '"' + stg() + '>'
+      + '<div class="scard-h"><span class="scard-nm">' + esc(s.name) + '</span>'
+      + (on ? '<span class="scard-on">' + IC('check', 11) + '当前</span>'
+            : '<span class="scard-n">' + s.acts.length + ' 个动作</span>')
+      + '<button class="ctx-more" data-act="ctx-open" title="编辑 / 删除这个场景">' + IC('more', 13) + '</button>'
+      + '</div>'
+      + (s.desc ? '<div class="scard-d">' + esc(s.desc) + '</div>' : '')
+      + '<div class="scard-a">' + (acts || '<div class="sc-empty">还没有动作 · 用卡片右上角的 ⋯ 加一个</div>') + '</div>'
+      + (DESK && miss
+          ? '<div class="scard-w">' + IC('x', 11) + miss + ' 个目标在本机找不到 · 点动作右边的 ⋯ 换掉，或整个删掉</div>'
+          : '')
+      + '</div>';
+  }).join('');
+  html += gcard('工作场景', TOOL.scenes.length, cards, { icon:'route', one:true });
+
+  html += addRow;
+
+  html += '<div class="td-tip">' + IC('route', 15)
+    + '<span>场景的本质是「跨应用编排」——桌面快捷方式只能开一个目标，'
+    + '而一次标定要同时就位目录、工程、工具与在线表格。</span></div>';
+
+  /* 探测放到最后：卡片先渲染出来，结果回来再补标记。
+     先查再画的话，每次进这一页都要空等一次文件系统。 */
+  probeScenes();
+  return html;
+}
+
+/* ---------- 片段与命令 ---------- */
+function buildSnip(){
+  const p = PAGE_MAP.snip;
+  const list = pick(TOOL.snips, ['name','lang','g','text']);
+  let html = pageHead(p, '共 ' + TOOL.snips.length + ' 条 · 带 {{变量}} 的会先让你填');
+  const addRow = '<div class="acts-row"><button data-act="snip-new">'
+    + IC('plus', 14) + '新增片段</button></div>';
+  if (!list.length) return html + emptyBox('没有匹配的片段') + addRow;
+
+  const card = (s, i) =>
+    '<div class="snip" data-act="snip-copy" data-id="' + s.id + '" data-kind="snip"'
+    + ' style="--i:' + Math.min(i, 9) + '"' + stg() + '>'
+    + '<div class="snip-h"><span class="snip-lang">' + esc(s.lang) + '</span>'
+    + '<span class="snip-nm">' + esc(s.name) + '</span>'
+    + (s.vars.length ? '<span class="snip-v">' + s.vars.length + ' 变量</span>' : '')
+    + '<span class="snip-cp">' + IC('copy', 13) + '</span>'
+    + '<button class="ctx-more" data-act="ctx-open" title="编辑 / 删除">' + IC('more', 13) + '</button>'
+    + '</div><pre class="snip-code">' + esc(s.text) + '</pre></div>';
+
+  /* 分组按数据里实际出现的跑，不再用一张写死的表。
+     片段以前是只读的，写死三种分组没问题；一旦能编辑，用户就会自己起
+     分组名（"热管理公式""台架脚本"），而写死的遍历会让新分组下的片段
+     整条从页面上消失 —— 存着、搜得到，就是看不见。 */
+  const groups = [];
+  list.forEach(s => { if (groups.indexOf(s.g) < 0) groups.push(s.g); });
+  let k = 0;
+  groups.forEach(g => {
+    const items = list.filter(s => s.g === g);
+    if (!items.length) return;
+    html += gcard(g, items.length, items.map(s => card(s, k++)).join(''),
+      { icon: g === '终端命令' ? 'terminal' : g === '文本模板' ? 'note' : 'code',
+        one:true,
+        /* 分组名直接预填进表单 —— 片段的分组是数据里的一个字段，
+           不像文件夹那样是派生的，所以这是真正意义上的"加进这一组"。 */
+        addKind:'snip', addCtx:{ group:g } });
+  });
+  return html + addRow;
+}
+
+/* ---------- 工程换算 ---------- */
+function buildCalc(){
+  const p = PAGE_MAP.calc;
+  const g = convGroup(state.convGroup);
+  let html = pageHead(p, '单位换算 · 湿空气 · PMV/PPD，全部实时可算', true);
+
+  /* 1) 单位换算 */
+  html += '<div class="conv" style="' + vars(ACC[5]) + '">'
+    + '<div class="conv-h"><span class="conv-ic">' + IC('swap', 15) + '</span><span class="conv-t">单位换算</span>'
+    + '<select class="conv-sel" data-conv="group">'
+    + CONV.map(x => '<option value="' + x.id + '"' + (x.id === g.id ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('')
+    + '</select></div>'
+    + '<div class="conv-in"><input type="number" data-conv="val" value="' + state.convVal + '" step="any">'
+    + '<span class="conv-u">' + esc(state.convFrom) + '</span></div>'
+    + '<select class="conv-fsel" data-conv="from">'
+    + Object.keys(g.u).map(u => '<option value="' + esc(u) + '"' + (u === state.convFrom ? ' selected' : '') + '>' + esc(u) + '</option>').join('')
+    + '</select>'
+    + '<div class="conv-out" id="convOut"></div></div>';
+
+  /* 2) 湿空气 */
+  html += '<div class="psy" style="' + vars(ACC[6]) + '">'
+    + '<div class="conv-h"><span class="conv-ic">' + IC('layers', 15) + '</span><span class="conv-t">湿空气参数</span>'
+    + '<span class="conv-note">Magnus 公式 · 101.325 kPa</span></div>'
+    + '<div class="psy-in">'
+    + numField('psy-ta', '干球温度', state.psy.ta, '℃', 0.1)
+    + numField('psy-rh', '相对湿度', state.psy.rh, '%', 1)
+    + '</div>'
+    + '<div class="psy-out" id="psyOut"></div></div>';
+
+  /* 3) PMV / PPD */
+  html += '<div class="pmv" style="' + vars(ACC[0]) + '">'
+    + '<div class="conv-h"><span class="conv-ic">' + IC('sparkle', 15) + '</span><span class="conv-t">PMV / PPD 速算</span>'
+    + '<span class="conv-note">ISO 7730 · Fanger</span></div>'
+    + '<div class="pmv-in">'
+    + numField('pmv-ta',  '空气温度 ta',  state.pmvIn.ta,  '℃',    0.1)
+    + numField('pmv-tr',  '平均辐射 tr',  state.pmvIn.tr,  '℃',    0.1)
+    + numField('pmv-vel', '风速 vel',     state.pmvIn.vel, 'm/s',  0.01)
+    + numField('pmv-rh',  '相对湿度',     state.pmvIn.rh,  '%',    1)
+    + numField('pmv-met', '代谢率 met',   state.pmvIn.met, 'met',  0.05)
+    + numField('pmv-clo', '服装热阻',     state.pmvIn.clo, 'clo',  0.05)
+    + '</div>'
+    + '<div class="pmv-out" id="pmvOut"></div></div>';
+
+  return html;
+}
+function numField(id, label, val, unit, step){
+  return '<label class="nf"><span class="nf-l">' + esc(label) + '</span>'
+    + '<span class="nf-b"><input type="number" id="' + id + '" value="' + val + '" step="' + step + '">'
+    + '<span class="nf-u">' + esc(unit) + '</span></span></label>';
+}
+/* 换算 / 湿空气 / PMV 的结果渲染 —— 输入变了只改这三块，不整页重建 */
+function calcUpdate(){
+  const g   = convGroup(state.convGroup);
+  const raw = parseFloat((document.querySelector('[data-conv="val"]') || {}).value);
+  const v   = isFinite(raw) ? raw : 0;
+  const out = $('convOut');
+  if (out && g.u[state.convFrom]){
+    const base = g.u[state.convFrom].to(v);
+    out.innerHTML = Object.keys(g.u).filter(u => u !== state.convFrom).map(u => {
+      const r = g.u[u].from(base);
+      return '<div class="cvo"><span class="cvo-v">' + fmtNum(r) + '</span><span class="cvo-u">' + esc(u) + '</span></div>';
+    }).join('');
+  }
+
+  const taEl = $('psy-ta'), rhEl = $('psy-rh'), pOut = $('psyOut');
+  if (taEl && rhEl && pOut){
+    const ta = parseFloat(taEl.value), rh = Math.min(100, Math.max(1, parseFloat(rhEl.value)));
+    if (isFinite(ta) && isFinite(rh)){
+      state.psy.ta = ta; state.psy.rh = rh;
+      const td  = PSY.td(ta, rh), dd = PSY.d(ta, rh) * 1000, hh = PSY.h(ta, rh), pv = PSY.pv(ta, rh);
+      const fog = ta <= td + 0.5;
+      pOut.innerHTML = resCell('露点温度', td.toFixed(1) + ' ℃', fog ? '结露风险' : '安全', fog)
+        + resCell('含湿量', dd.toFixed(2) + ' g/kg', '干空气', false)
+        + resCell('比焓', hh.toFixed(1) + ' kJ/kg', '干空气', false)
+        + resCell('水汽分压', pv.toFixed(3) + ' kPa', '饱和 ' + PSY.es(ta).toFixed(3), false);
+    }
+  }
+
+  const ids = ['pmv-ta','pmv-tr','pmv-vel','pmv-rh','pmv-met','pmv-clo'];
+  const els = ids.map(i => $(i)), mo = $('pmvOut');
+  if (els.every(Boolean) && mo){
+    const ta = parseFloat(els[0].value), tr = parseFloat(els[1].value), vel = parseFloat(els[2].value);
+    const rh = parseFloat(els[3].value), met = parseFloat(els[4].value), clo = parseFloat(els[5].value);
+    if ([ta,tr,vel,rh,met,clo].every(isFinite)){
+      state.pmvIn = { ta:ta, tr:tr, vel:vel, rh:rh, met:met, clo:clo };
+      const r = pmvSolve(ta, tr, vel, rh, met, clo);
+      const ok = Math.abs(r.pmv) <= 0.5;
+      mo.innerHTML = '<div class="pmv-big' + (ok ? ' ok' : '') + '">'
+        + '<div class="pmv-n">' + r.pmv.toFixed(2) + '</div>'
+        + '<div class="pmv-l">PMV · ' + esc(pmvWord(r.pmv)) + '</div></div>'
+        + resCell('PPD', r.ppd.toFixed(1) + ' %', r.ppd <= 10 ? '达标' : '超标', r.ppd > 10)
+        + resCell('服装表面温度 tcl', r.tcl.toFixed(1) + ' ℃', '', false)
+        + resCell('对流换热系数 hc', r.hc.toFixed(2) + ' W/(m²·K)', '', false)
+        + resCell('服装面积系数 fcl', r.fcl.toFixed(3), '', false)
+        + resCell('水汽分压 pa', r.pa.toFixed(3) + ' kPa', '', false);
+    }
+  }
+}
+function resCell(label, val, note, warn){
+  return '<div class="rc' + (warn ? ' warn' : '') + '"><span class="rc-l">' + esc(label) + '</span>'
+    + '<span class="rc-v">' + esc(val) + '</span>'
+    + (note ? '<span class="rc-n">' + esc(note) + '</span>' : '') + '</div>';
+}
+const fmtNum = v => {
+  if (!isFinite(v)) return '—';
+  const a = Math.abs(v);
+  if (a !== 0 && (a < 0.01 || a >= 1e6)) return v.toExponential(3);
+  return Math.abs(v - Math.round(v)) < 1e-9 ? String(Math.round(v)) : v.toFixed(Math.min(4, Math.max(2, 6 - String(Math.floor(a)).length)));
+};
+
+/* ---------- 速记 ---------- */
+function buildNote(){
+  const p = PAGE_MAP.note;
+  let html = pageHead(p, '共 ' + TOOL.notes.length + ' 条 · 想到就记，不打断当前工作')
+    + '<div class="note-add"><textarea id="noteInput" rows="2" placeholder="记点什么…… Ctrl + Enter 保存"></textarea>'
+    + '<div class="note-add-f"><span class="hint">支持纯文本，自动按日期分组</span>'
+    + '<button class="nb" data-act="note-save">' + IC('plus', 13) + '记下</button></div></div>';
+
+  if (!TOOL.notes.length) return html + emptyBox('还没有速记\n在上方写点什么试试');
+  const card = (n, i) =>
+    '<div class="ncard" data-kind="note" data-id="' + n.id + '" style="--i:' + Math.min(i, 9) + '"' + stg() + '>'
+    + '<div class="ncard-tx">' + esc(n.text) + '</div>'
+    + '<div class="ncard-f"><span class="ncard-tag">' + esc(n.tag) + '</span>'
+    + '<span class="ncard-at">' + esc(n.at) + '</span>'
+    + '<button class="ncard-cp" data-act="note-copy" data-id="' + n.id + '" title="复制">' + IC('copy', 12) + '</button>'
+    /* 原来这里是直接的"删除 ×"。删改成菜单入口：速记最需要的其实是
+       "改一个字"，而删除本来就不该是一个没有确认的一步操作。 */
+    + '<button class="ctx-more" data-act="ctx-open" title="编辑 / 删除">' + IC('more', 12) + '</button></div></div>';
+  let k = 0;
+  ['今天','昨天','更早'].forEach(d => {
+    const items = TOOL.notes.filter(n => n.day === d);
+    if (!items.length) return;
+    html += gcard(d, items.length, items.map(n => card(n, k++)).join(''),
+      { icon: d === '今天' ? 'note' : d === '昨天' ? 'clock' : 'layers', one:true });
+  });
+  return html;
+}
+
+/* ---------- 贴图钉屏 ---------- */
+function buildShot(){
+  const p = PAGE_MAP.shot;
+  let html = pageHead(p, '把参考图钉在桌面最上层 · 不用来回切窗口');
+  /* 贴图要的是"另开一个可拖动的无边框小窗钉在桌面上"，
+     那是一个独立的窗口，不是面板里的一张卡。这一层没做，所以不能写
+     "桌面版由无边框置顶窗口实现：可拖动、可缩放" —— 桌面版的面板恰恰
+     是不可拖动、不可缩放的固定窗口。 */
+  html += '<div class="td-tip">' + IC('camera', 15)
+    + '<span>' + (DESK
+        ? '贴图还没做：真正的贴图要另开一个无边框置顶小窗，能拖动、缩放、调透明度、'
+          + '关掉面板也不消失。现在这里只是一个占位列表。'
+        : '设计意图是让参考图脱离面板单独钉在桌面上：可拖动、可缩放、可调透明度，'
+          + '关掉面板也不会消失。') + '</span></div>';
+  if (!TOOL.shots.length) return html + emptyBox('还没有贴图\n截图后点这里钉住');
+
+  const cards = TOOL.shots.map((s, i) =>
+    '<div class="shot" data-kind="shot" data-id="' + s.id + '" style="--i:' + Math.min(i, 9) + '"' + stg() + '>'
+    + '<div class="shot-img"><svg viewBox="0 0 160 92" aria-hidden="true">'
+    + '<rect width="160" height="92" fill="var(--cb-soft)"/>'
+    + '<path d="M0 70l34-30 24 20 18-14 30 24z" fill="var(--cb)" opacity=".28"/>'
+    + '<circle cx="126" cy="26" r="11" fill="var(--cb)" opacity=".45"/></svg>'
+    + '<span class="shot-pin">' + IC('pinV', 13) + '</span></div>'
+    + '<div class="shot-b"><div class="shot-bt"><div class="shot-t">' + esc(s.t) + '</div>'
+    /* 贴图卡片原来只有一个透明度滑杆是可操作的，改名 / 删除全靠右键。
+       FORMS.shot 和 ctxFor('shot') 都在，缺的同样只是可见入口。 */
+    + '<button class="ctx-more" data-act="ctx-open" title="编辑 / 删除">' + IC('more', 13) + '</button></div>'
+    + '<div class="shot-m">' + s.w + '×' + s.h + ' · ' + esc(s.at) + '</div>'
+    + '<div class="shot-op"><input type="range" data-shot-op="' + s.id + '" min="30" max="100" value="' + s.op + '">'
+    + '<span class="shot-ov">' + s.op + '%</span></div></div></div>').join('');
+  html += gcard('已钉在桌面', TOOL.shots.length, cards, { icon:'camera' });
+
+  /* 按钮文案必须跟真正会发生的事一致：
+     这里既没有截屏能力、也没有真的"钉"，只是手工登记一条记录。
+     写"钉一张新截图"／"全部取消钉住"会让用户以为背后有截屏和钉屏，
+     点完发现是另一回事 —— 正是"说得比做得多"那类最容易失信的地方。 */
+  html += '<div class="acts-row"><button data-act="shot-add">' + IC('camera', 14) + '手工登记一张贴图</button>'
+    + '<button data-act="shot-clear">' + IC('x', 14) + '清空这个列表</button></div>';
+  return html;
+}
+
+/* 速问页。四个层次，从「能不能用」到「用了什么」：
+     1) 状态条：服务商 / 模型 / Key 三样各是什么、缺哪一样，直接给「去设置」。
+     2) 会话条：这一段对话叫什么、第几轮、快还是深、要不要读知识库 ——
+        三个开关都记在**会话**上，不是全局设置（这一问要不要看我的资料
+        是每一段对话各自的事）。
+     3) 会话列表 + 本轮对话：会话是真实集合，能改名、能删、能搜；
+        同一段里的问答按时间正序排，跟人读对话的方向一致。
+     4) 常用问法与知识库：问法可增删改；知识库列源、报块数、能增量重扫。
+
+   浏览器原型里知识库那张卡只写清「做不到、为什么」，**不放按钮** ——
+   它需要在用户机器上读文件、切块、调嵌入模型，浏览器里没有这一层。 */
+function buildAsk(){
+  const p = PAGE_MAP.ask;
+  const ready = aiReady();
+  const sess = askSessCur();
+  const turns = sess ? askTurns(sess.id) : [];
+  let html = pageHead(p, TOOL.askSess.length
+    ? '共 ' + TOOL.askSess.length + ' 段会话 · ' + TOOL.asks.length + ' 条问答'
+    : '唤出即问 · 回答可存入速记或片段');
+
+  html += aiStatusStrip();
+  html += askSessBar(sess, turns.length);
+
+  html += '<div class="ask-bar"><textarea id="askInput" rows="2" placeholder="'
+    + (ready.ok ? '问点什么…… 当前模型 ' + esc(state.settings.ai.model)
+               : '问点什么…… 先在设置页配好模型（上面的状态条里有入口）')
+    + '　Ctrl + Enter 发送"></textarea>'
+    + '<button class="ask-go' + (ready.ok ? '' : ' off') + '" data-act="ask-send" title="发送">'
+    + IC('sparkle', 15) + '</button></div>';
+
+  /* ---- 会话列表。当前那段用 on 标出来；每一行都带可见 ⋯（切 / 改名 / 删）。
+     「新会话」既是上面那条里的按钮，也在这一组的 + 上（同一条路）。 ---- */
+  const sessRows = TOOL.askSess.map((s, i) => {
+    const n = askTurns(s.id).length;
+    return '<div class="sess-row' + (sess && s.id === sess.id ? ' on' : '') + '"'
+      + ' data-kind="askSess" data-id="' + esc(s.id) + '" style="--i:' + Math.min(i, 9) + '"' + stg() + '>'
+      + '<button class="sess-b" data-act="ask-sess-use" data-id="' + esc(s.id) + '">'
+      + '<span class="sess-t">' + esc(s.title || '未命名会话') + '</span>'
+      + '<span class="sess-s">' + esc(s.at || '') + ' · ' + (n ? n + ' 轮' : '还没问过')
+      + ' · ' + (s.mode === 'deep' ? '深' : '快')
+      + (s.kb ? ' · 知识库' : '') + (s.only ? ' · 仅资料' : '') + '</span></button>'
+      + '<button class="ctx-more" data-act="ctx-open" title="切到 / 重命名 / 删除">' + IC('more', 12) + '</button>'
+      + '</div>';
+  }).join('');
+  html += gcard('会话', TOOL.askSess.length,
+    sessRows || emptyBox('还没有会话\n问一句就会自动开一段；也可以点这一组的 + 先起一段'),
+    { icon:'bot', hideN:true, addKind:'askSess' });
+
+  /* ---- 本轮对话。这一块就是「多轮」看得见的地方：同一段会话里的问答按先后
+     排下来，发下一句时会带着这几轮当上下文（最近 6 轮）。 ---- */
+  const cards = turns.map((a, i) => askCard(a, i)).join('');
+  html += gcard(sess ? ('本轮对话 · ' + (sess.title || '未命名会话')) : '本轮对话', turns.length,
+    cards || emptyBox(ready.ok
+      ? '这一段还没问过\n在上面输入框里问一句，它就会出现在这里'
+      : '这一段还没问过\n先到设置页配好模型（状态条上有入口）'),
+    { icon:'text', one:true, addKind:'ask', addCtx:{ sess:(sess ? sess.id : '') } });
+
+  html += askTplCard();
+  html += kbCard();
+
+  const demoN = TOOL.asks.filter(a => a.state === 'demo').length;
+  html += '<div class="acts-row">'
+    + '<button data-act="ask-new">' + IC('plus', 14) + '手工记一条问答</button>'
+    + (demoN ? '<button data-act="ask-clear-demo">' + IC('x', 14) + '清掉 ' + demoN + ' 条演示问答</button>' : '')
+    + '<button data-act="ask-clear">' + IC('trash', 14) + '清空问答记录</button>'
+    + '</div>';
+  return html;
+}
+/* 会话条：这一段叫什么 + 三个开关。档位用两个按钮而不是 data-seg ——
+   data-seg 会把值写进 state.settings（见 setSetting），而这三个开关都属于
+   会话、不属于全局设置，混进去会让「切了会话，别的对话行为也变了」。 */
+function askSessBar(sess, n){
+  const mode = sess ? (sess.mode === 'deep' ? 'deep' : 'fast') : 'fast';
+  return '<div class="asess">'
+    + '<div class="asess-h">'
+    + '<span class="asess-t">' + esc(sess ? (sess.title || '未命名会话') : '还没有会话') + '</span>'
+    + '<span class="asess-n">' + (n ? '下一轮是第 ' + (n + 1) + ' 轮' : '还没开始') + '</span>'
+    + (sess ? '<button class="ctx-more" data-act="ctx-open" data-kind="askSess" data-id="' + esc(sess.id) + '"'
+        + ' title="切到 / 重命名 / 删除">' + IC('more', 12) + '</button>' : '')
+    + '</div>'
+    + '<div class="asess-r">'
+    + '<button class="asess-tg' + (mode === 'fast' ? ' on' : '') + '" data-act="ask-mode"'
+    + ' data-mode="fast" title="快：按设置里填的上限直接答">' + IC('play', 13) + '快</button>'
+    + '<button class="asess-tg' + (mode === 'deep' ? ' on' : '') + '" data-act="ask-mode"'
+    + ' data-mode="deep" title="深：开思考，输出上限自动放宽">' + IC('layers', 13) + '深</button>'
+    + '<button class="asess-tg' + (sess && sess.kb ? ' on' : '') + '" data-act="ask-kb">'
+    + IC('book', 13) + '知识库</button>'
+    + '<button class="asess-tg' + (sess && sess.only ? ' on' : '') + '" data-act="ask-only">'
+    + IC('lock', 13) + '只依据知识库</button>'
+    + '<button class="asess-tg" data-act="ask-sess-new">' + IC('plus', 13) + '新会话</button>'
+    + '</div>'
+    + '<div class="asess-hint">' + askSessHint(sess) + '</div>'
+    + '</div>';
+}
+/* 这一段现在是怎么设置的，用人话写出来。★ 那句是重点：开了知识库却用不了时，
+   必须当场说，而不是等用户点了提问、拿到一个「没检索到」再自己猜。 */
+function askSessHint(sess){
+  if (!sess) return '还没有会话 —— 问一句就会自动开一段。';
+  const bits = [];
+  bits.push(sess.mode === 'deep'
+    ? '「<b>深</b>」：会开思考、输出上限自动放宽到 3000（DeepSeek 推理型 8000），慢一些但更完整'
+    : '「<b>快</b>」：按设置里填的回答长度上限直接答（默认 900）');
+  if (!sess.kb) bits.push('知识库关着：它只用模型自己的知识答');
+  else if (sess.only) bits.push('知识库开着且锁死：资料里没有的它会直接说不确定，不拿自己的知识补');
+  else bits.push('知识库开着：每次提问先在你的资料里检索，回答里会用（片段N）标出依据');
+  bits.push('多轮：最近 6 轮会作为上下文一起发出去');
+  const un = sess.kb ? kbUnavailable() : '';
+  if (un) bits.push('<b>★ 但知识库现在用不了：</b>' + esc(un));
+  return bits.join('；');
+}
+/* 一条问答。档位、引用都挂在它自己身上 —— 这样才能「这一条当时是怎么问的」
+   一目了然，而不是全页共用一套显示状态。 */
+function askCard(a, i){
+  const refs = (a.refs || []).length
+    ? '<div class="qa-refs">' + a.refs.map(r =>
+        '<span class="qa-ref" title="' + esc(r.source || '') + '"><i>片段' + r.n + '</i>'
+        + '<span>' + esc(r.title || r.source || '未命名来源') + '</span></span>').join('') + '</div>'
+    : '';
+  return '<div class="qa" data-kind="ask" data-id="' + esc(a.id) + '"'
+    + ' style="--i:' + Math.min(i, 9) + '"' + stg() + '>'
+    + '<div class="qa-q"><span class="qa-av">' + IC('bot', 14) + '</span><span>' + esc(a.q) + '</span>'
+    + (a.state === 'demo' ? '<span class="qa-demo">演示</span>' : '')
+    + (a.mode === 'deep' ? '<span class="qa-chip">深</span>' : '')
+    + '<button class="ctx-more" data-act="ctx-open" title="重新问 / 编辑 / 删除">' + IC('more', 12) + '</button>'
+    + '</div>'
+    + '<div class="qa-a' + (a.state === 'run' ? ' run' : a.state === 'err' ? ' err' : '') + '">'
+    + esc(a.a) + '</div>'
+    + refs
+    + '<div class="qa-f"><button data-act="ask-to-note" data-id="' + esc(a.id) + '">' + IC('note', 13) + '存入速记</button>'
+    + '<button data-act="ask-copy" data-id="' + esc(a.id) + '">' + IC('copy', 13) + '复制回答</button>'
+    + (a.state === 'err' ? '<button data-act="ask-retry" data-id="' + esc(a.id) + '">' + IC('swap', 13) + '重试</button>' : '')
+    + '<span class="qa-m">' + esc(a.at || '') + (a.model ? ' · ' + esc(a.model) : '') + '</span>'
+    + '</div></div>';
+}
+function askTplCard(){
+  const tpl = TOOL.askTpl.map((t, i) =>
+    '<div class="ask-tpl" data-kind="askTpl" data-id="' + esc(t.id) + '"'
+    + ' style="--i:' + Math.min(i, 9) + '"' + stg() + '>'
+    + '<button class="ask-tpl-b" data-act="ask-tpl" data-id="' + esc(t.id) + '">'
+    + IC(t.ic, 14) + '<span>' + esc(t.t) + '</span></button>'
+    + '<button class="ctx-more" data-act="ctx-open" title="编辑 / 删除">' + IC('more', 12) + '</button>'
+    + '</div>').join('');
+  return gcard('常用问法', TOOL.askTpl.length, tpl || emptyBox('还没有常用问法'),
+    { icon:'sparkle', hideN:true, addKind:'askTpl' });
+}
+/* 知识库那一栏。浏览器原型里**不摆按钮**：它需要在用户机器上读文件、
+   切块、调嵌入模型 —— 摆一排点不动的按钮，比缺功能更让人困惑。 */
+function kbCard(){
+  if (!DESK || !JZ || !JZ.kb)
+    return gcard('知识库', 0,
+      '<div class="kb-note">' + IC('book', 15) + '<div><b>知识库要桌面版</b>'
+      + '<span>它要在你这台机器上读文件、按语义切块、调用嵌入模型，再把向量存到本机。'
+      + '浏览器原型里没有这一层，所以这里不放按钮 —— 摆了也点不动。</span></div></div>',
+      { icon:'book', hideN:true });
+
+  const un = kbUnavailable();
+  const st = kbState.stats;
+  const rows = (kbState.sources || []).map(s =>
+    '<div class="kb-src">'
+    + '<span class="kb-ic">' + IC(kbKindIcon(s.kind), 13) + '</span>'
+    + '<div class="kb-m"><b>' + esc(s.label || s.target) + '</b>'
+    + '<span>' + esc(kbKindName(s.kind)) + ' · ' + esc(s.target) + '</span></div>'
+    + '<span class="kb-n">' + (s.chunks || 0) + ' 块</span>'
+    + '<button class="mini" data-act="kb-del" data-id="' + esc(s.id) + '">移除</button>'
+    + '</div>').join('');
+
+  let body = '';
+  if (kbState.error)
+    body += '<div class="kb-note bad">' + IC('book', 15) + '<div><b>读取知识库状态失败了</b><span>'
+      + esc(kbState.error) + '</span></div></div>';
+  if (un)
+    body += '<div class="kb-note">' + IC('book', 15) + '<div><b>还不能用</b><span>' + esc(un)
+      + '</span></div></div>';
+  body += rows || emptyBox(kbState.loading
+    ? '正在读取知识库…'
+    : '还没有接入任何资料\n可以加一个文件夹、几个文件、一个网页，或直接贴一段文字');
+  body += '<div class="kb-acts">'
+    + '<button class="mini" data-act="kb-add-folder">' + IC('folder', 13) + '加文件夹</button>'
+    + '<button class="mini" data-act="kb-add-files">' + IC('file', 13) + '加文件</button>'
+    + '<button class="mini" data-act="kb-add-url">' + IC('globe', 13) + '加网页</button>'
+    + '<button class="mini" data-act="kb-add-text">' + IC('note', 13) + '贴一段文字</button>'
+    + '<button class="mini" data-act="kb-reindex">' + IC('swap', 13) + '重新扫描</button>'
+    + ((kbState.sources || []).length
+        ? '<button class="mini" data-act="kb-clear">' + IC('trash', 13) + '清空知识库</button>' : '')
+    + '</div>'
+    + '<div class="kb-note">' + IC('book', 15) + '<div><b>'
+    + (st ? (st.sources + ' 个来源 · ' + st.chunks + ' 块 · ' + (st.dim || 0) + ' 维向量')
+          : '还没有向量数据')
+    + '</b><span>支持 .md / .txt / 代码 / .pdf / .docx 与网页。'
+    + '网页抓取是最朴素的那种（不跑 JavaScript），靠脚本渲染正文的页面会抓不到，那时会如实报错。'
+    + '「重新扫描」只重嵌新增和改动过的文件，不会整库重建。</span></div></div>';
+  return gcard('知识库', (kbState.sources || []).length, body, { icon:'book', hideN:true });
+}

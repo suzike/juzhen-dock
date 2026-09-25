@@ -1,0 +1,797 @@
+/* ================================================================
+   四·补二、真终端（ConPTY）
+   ----------------------------------------------------------------
+   这一块从 suzike/agentic-island（同为 Electron + node-pty）搬过来，
+   但只搬"能在这里成立的"：
+
+   保留：
+     · 多标签的真 ConPTY 会话（vim / top / 交互式 CLI 都能跑）
+     · 16 条命令预设，按 项目 / Git / Node / 系统 分组
+     · 危险命令识别 —— 目的不是拦截，是让你在回车之前看见一次
+     · 输出摘要（连续重复行折叠）—— 构建日志刷几百行是常态，
+       不折的话"交给 AI 分析"这一步会先把上下文烧光
+     · 退出码（靠 PowerShell prompt 包装发 OSC 633;D）与当前目录
+     · 把终端现场交给 AI 做诊断 / 生成交接摘要
+
+   不搬（并说明理由，免得看起来像漏了）：
+     · 工作区快照的独立文件格式 —— 聚珍的标签元数据直接进存档
+       （store.json），再开一套"导入导出"只会让备份有两个入口
+     · 独立窗口 / 分屏 —— 用户的决定是"进终端页自动钉住"，不是开新窗口
+
+   一条硬约束：浏览器原型里没有 PTY。那里**不**加载 xterm，页面如实写
+   "终端需要桌面版"，而不是给一个点了没反应的输入框。
+   ================================================================ */
+
+/* ---------- 命令预设 ---------- */
+const TERM_PRESETS = [
+  { g:'项目', label:'当前位置', cmd:'Get-Location', desc:'当前工作目录' },
+  { g:'项目', label:'目录详情', cmd:'Get-ChildItem -Force', desc:'含隐藏项' },
+  { g:'项目', label:'两层文件', cmd:'Get-ChildItem -Depth 2 | Select-Object FullName', desc:'快速看结构' },
+  { g:'项目', label:'工具版本', cmd:'Get-Command git,node,npm,python -ErrorAction SilentlyContinue | Select-Object Name,Version,Source', desc:'开发工具在哪' },
+  { g:'Git',  label:'仓库状态', cmd:'git status --short --branch', desc:'分支与未提交' },
+  { g:'Git',  label:'变更统计', cmd:'git diff --stat', desc:'改动规模' },
+  { g:'Git',  label:'最近提交', cmd:'git log --oneline --decorate -8', desc:'最近八条' },
+  { g:'Git',  label:'分支概览', cmd:'git branch --all --verbose --no-abbrev', desc:'本地与远端' },
+  { g:'Node', label:'可用脚本', cmd:'npm run', desc:'package.json scripts' },
+  { g:'Node', label:'运行测试', cmd:'npm test', desc:'跑项目测试' },
+  { g:'Node', label:'生产构建', cmd:'npm run build', desc:'跑项目构建' },
+  { g:'Node', label:'Node 环境', cmd:'node --version; npm --version', desc:'Node 与 npm 版本' },
+  { g:'系统', label:'PowerShell', cmd:'$PSVersionTable', desc:'运行环境' },
+  { g:'系统', label:'高负载进程', cmd:'Get-Process | Sort-Object CPU -Descending | Select-Object -First 12 Name,Id,CPU,WorkingSet', desc:'CPU 占用前 12' },
+  { g:'系统', label:'监听端口', cmd:'Get-NetTCPConnection -State Listen | Sort-Object LocalPort | Select-Object LocalAddress,LocalPort,OwningProcess', desc:'谁在占端口' },
+  { g:'系统', label:'环境变量', cmd:'Get-ChildItem Env: | Sort-Object Name', desc:'当前会话变量' }
+];
+
+/* xterm 的默认 ANSI 调色板是按**深色底**设计的：浅纸面上亮青、亮黄、
+   亮白几乎看不见（`ls` 的目录名、git 的绿色分支名都会糊掉）。这里的
+   ANSI 16 色是给浅底重新选的，保持色相可辨但不刺眼。 */
+const TERM_ANSI = {
+  black:'#3B3B3B', red:'#B3403A', green:'#2E7D4F', yellow:'#9A6B1F',
+  blue:'#2E5F9E', magenta:'#8A4C8F', cyan:'#1F7A80', white:'#B9B4AC',
+  brightBlack:'#7A746C', brightRed:'#D2554B', brightGreen:'#3E9A64',
+  brightYellow:'#B8862A', brightBlue:'#3E77BE', brightMagenta:'#A863AE',
+  brightCyan:'#2C9299', brightWhite:'#EFEAE2'
+};
+
+/* ---------- 纯函数（无 DOM、无 JZ，可单独喂数据验） ---------- */
+
+/* 控制序列清理。xterm 自己会解释这些序列，但"读给人看 / 交给模型"之前
+   必须先剥掉 —— 一串 \x1b[?25h\x1b[2K 会白占掉大半个上下文。 */
+function termStrip(s){
+  return String(s == null ? '' : s)
+    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, '')
+    .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '')
+    .replace(/\x1b[@-Z\\-_]/g, '')
+    .replace(/\r/g, '')
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '');
+}
+/* 退出码：主进程那边的 PowerShell 引导会把上一条命令的退出码写成
+   OSC 633;D;<code>。这是**唯一干净**的来源 —— 靠解析输出文本猜退出码，
+   在"报错但返回 0"或"成功却打了 error 字样"时都会骗人。
+   取最后一个：一条命令的完成标记一定晚于它自己的启动标记。 */
+function termExitCode(s){
+  const m = [...String(s).matchAll(/\x1b\]633;D;(-?\d+)\x07/g)];
+  return m.length ? Number(m[m.length - 1][1]) : null;
+}
+/* 当前目录：抓提示符里的 "PS C:\path>"。命令的**回显**里也可能出现 PS 字样
+   （比如你刚 grep 过一段日志），所以取最后一个匹配而不是第一个。 */
+function termCwdOf(s){
+  const m = [...termStrip(s).matchAll(/(?:^|\n)PS\s+([^\n>]+)>/g)];
+  return m.length ? m[m.length - 1][1].trim() : null;
+}
+/* 输出摘要：把连续重复行折成一句。折叠比截断好 —— 截断会把最后的报错切掉，
+   而最后的报错恰恰是最该看的那几行。 */
+function termSummarize(s){
+  const lines = termStrip(s).split('\n');
+  const out = []; let prev = '', rep = 0;
+  const flush = () => { if (rep){ out.push('  … 与上一行相同，重复 ' + rep + ' 行'); rep = 0; } };
+  lines.forEach(function(raw){
+    const line = raw.replace(/\s+$/, '');
+    if (!line && out[out.length - 1] === '') return;
+    if (line && line === prev){ rep++; return; }
+    flush(); out.push(line); prev = line;
+  });
+  flush();
+  return { text: out.join('\n').trim(), raw: lines.length, kept: out.length };
+}
+/* 危险命令识别。目标不是拦截 —— 终端里最贵的错误是把 -Recurse -Force
+   打成了另一个路径，而那种命令执行完没有"撤销"。所以这里只负责
+   "在回车之前让你看见一次"。 */
+const TERM_DANGER = [
+  /\bremove-item\b[^\n]*(?:-recurse|-force)/,
+  /\b(?:del|erase|rd|rmdir)\b[^\n]*(?:\/s|\/q)/,
+  /\bgit\s+(?:reset\s+--hard|clean\s+-[^\s]*f|push[^\n]*--force)/,
+  /\bformat(?:-volume)?\b/, /\bclear-disk\b/,
+  /\bstop-computer\b|\brestart-computer\b/,
+  /\b(?:npm|pnpm|yarn)\s+publish\b/
+];
+function termDangerous(cmd){
+  const c = String(cmd || '').trim().toLowerCase();
+  return TERM_DANGER.some(function(re){ return re.test(c); });
+}
+function termQuote(v){ return "'" + String(v).replace(/'/g, "''") + "'"; }
+function termCdCmd(p){ return 'Set-Location -LiteralPath ' + termQuote(String(p).trim()); }
+function termShort(p){
+  const parts = String(p || '').split(/[\\/]+/).filter(Boolean);
+  return parts.length > 2 ? '…\\' + parts.slice(-2).join('\\') : String(p || '');
+}
+/* 交给模型的两段提示词。共同约束：**不许自动执行**任何建议命令。
+   模型看不到你的桌面，它给的重启/清理命令可能对着完全错误的路径。 */
+function termDiagPrompt(x){
+  return [
+    '请作为资深 Windows / PowerShell 开发环境诊断助手，分析下面的终端现场。',
+    '要求：先给最可能的根因，再给可验证的步骤；建议的命令必须说明风险，',
+    '并且我不会自动执行 —— 请不要假设你已经跑过它们。不确定的地方明确标注。',
+    x.shell ? ('当前 Shell：' + x.shell) : '',
+    x.cwd ? ('工作目录：' + x.cwd) : '',
+    (x.exit === null || x.exit === undefined) ? '' : ('上一条命令退出码：' + x.exit),
+    x.cmd ? ('最近命令：' + x.cmd) : '',
+    '最近输出：',
+    String(x.out || '').slice(-12000)
+  ].filter(Boolean).join('\n');
+}
+function termHandoffPrompt(x){
+  return [
+    '请把下面的开发终端现场整理成"下一次可以直接接着干"的交接摘要。',
+    '固定结构：当前目标 / 已完成 / 当前状态 / 阻塞与风险 / 下一步 / 关键命令。',
+    '只写现场里出现过的事实，不要补充你没看到的推测。',
+    x.cwd ? ('工作目录：' + x.cwd) : '',
+    x.cmd ? ('最近命令：' + x.cmd) : '',
+    '最近输出：',
+    String(x.out || '').slice(-12000)
+  ].filter(Boolean).join('\n');
+}
+
+/* ---------- 终端会话与界面状态 ----------
+   分清两件事：TOOL.terms 是**标签元数据**（可落盘），TERM_UI.pane 是
+   xterm 实例与缓冲区（只活在内存）。进程本身在主进程里，按 id 对应。
+   分开之后"关掉面板再打开"标签还在，而不会因为渲染侧重载就留下一堆
+   再也引用不到的孤儿进程。 */
+const TERM_UI = {
+  avail: null,        /* JZ.pty.avail() 的真实结果 */
+  loading: false,     /* xterm 资源是否正在加载 */
+  loaded: false,      /* xterm 是否已就绪 */
+  err: '',
+  pane: {},           /* id -> { term, fit, el, buf, exit, cwd, lastCmd, dead } */
+  active: '',
+  pinSaved: null,     /* 进终端页之前的钉住状态 */
+  pendingCmd: ''      /* 预设命令：会话起来之后再写进去 */
+};
+
+/* #termBox 是终端的**常驻容器**：xterm 的 DOM 与画布全住在它里面。
+   它有一处不能靠 `getElementById` 找回 —— 页面正文被清空时（invalidatePage /
+   refresh 里那句 `b.innerHTML=''`）它会先被摘出文档，那一刻 getElementById
+   返回 null，于是"再建一个新的"，而新盒子里没有老树：会话还在跑、只是看不见了
+   （表现就是"切走再切回来终端变白"）。所以自己留一份引用。 */
+let TERM_BOX = null;
+function termBox(){
+  if (!TERM_BOX){
+    const b = document.createElement('div');
+    b.id = 'termBox';
+    b.className = 'tz-box';
+    TERM_BOX = b;
+    document.body.appendChild(b);
+    b.addEventListener('contextmenu', function(e){
+      e.preventDefault();
+      const t = tok(termBox());
+      if (!t) return;
+      openCtx(e.clientX, e.clientY, [{
+        icon:'terminal', label:'在这里粘贴剪贴板', run: function(){ termPasteTo(t); }
+      }, {
+        icon:'copy', label:'复制全部输出', run: function(){ termCopyAll(t); }
+      }, {
+        icon:'layers', label:'看输出摘要', run: function(){ termShowSummary(t); }
+      }, { sep:true }, {
+        icon:'swap', label:'换个 Shell 重开…', run: function(){ termPickShell(t); }
+      }, {
+        icon:'trash', label:'结束这个会话', danger:true, run: function(){ termCloseTab(t); }
+      }], termBox());
+    });
+  }
+  return TERM_BOX;
+}
+/* 从某个元素往上找它属于哪个标签 id */
+function tok(el){
+  let n = el;
+  while (n && n !== document.body){
+    if (n.dataset && n.dataset.tid) return n.dataset.tid;
+    n = n.parentNode;
+  }
+  return TERM_UI.active;
+}
+function termStash(){
+  let s = document.getElementById('termStash');
+  if (!s){ s = document.createElement('div'); s.id = 'termStash'; s.hidden = true; document.body.appendChild(s); }
+  return s;
+}
+/* 把终端的 DOM 从页面里摘出来放进隐藏兜底容器。
+   renderPage / invalidatePage / refresh 都会用 innerHTML 重建或清空正文，
+   xterm 持有真实 DOM 与画布 —— 不先摘走就会被当成垃圾一起清掉
+   （表现是"切走再切回来终端变白"）。
+   它必须**幂等且随时可调用**：盒子已经在兜底容器里时什么都不做，
+   而盒子已经被清出文档（父节点为 null）时也要能捡回来 —— 所以只认
+   TERM_BOX 那份引用，不查 getElementById。 */
+function termDetach(){
+  const b = TERM_BOX;
+  if (b && b.parentNode !== termStash()) termStash().appendChild(b);
+}
+function termMount(){
+  const m = document.getElementById('termMount');
+  if (!m) return;
+  m.appendChild(termBox());
+  /* 有活动标签、却没有对应的 pane —— 这是**重启之后的常态**：
+     标签列表跟存档回来，进程不回来（退出时就被收掉了）。
+     而"起会话"原来只有一个发起方：termAddTab，它又只在"一个标签都没有"
+     时才被叫到。于是重启后打开终端页 = 标签栏 + 一大块空白，非得手动点
+     一下标签才出会话。用户要的是"只保留一个清爽的大终端界面"——
+     清爽不等于空着不动，那一整块空地方就该是终端本身。
+     补的就是这个缺口。termActivate 对已存在的 pane 是幂等的
+     （termEnsurePane 先查表），主进程侧 JZ.pty.ensure 也按 id 复用，
+     所以这个补口不会重复起进程；组件还没加载好时它返回 null，
+     也不会留下半个 pane（那种情况由 termLoadVendor 到位后再补一次）。 */
+  const id = termActiveId();
+  if (DESK && id && !TERM_UI.pane[id]) termActivate(id);
+  termPaintTabs();
+  termFitSoon();
+}
+
+/* ---------- xterm 资源（只在桌面版加载） ---------- */
+const TERM_VENDOR = ['vendor/xterm.js', 'vendor/addon-fit.js'];
+function termLoadVendor(){
+  if (TERM_UI.loaded) return Promise.resolve(true);
+  if (TERM_UI.loading) return TERM_UI.loading;
+  /* 样式只加一次 */
+  if (!document.getElementById('xtermCss')){
+    const l = document.createElement('link');
+    l.id = 'xtermCss'; l.rel = 'stylesheet'; l.href = 'vendor/xterm.css';
+    document.head.appendChild(l);
+  }
+  const one = src => new Promise(res => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = () => res(true);
+    s.onerror = () => res(false);
+    document.head.appendChild(s);
+  });
+  TERM_UI.loading = Promise.all(TERM_VENDOR.map(one)).then(function (rs){
+    TERM_UI.loading = false;
+    TERM_UI.loaded = rs.every(Boolean) && typeof window.Terminal === 'function';
+    if (!TERM_UI.loaded) TERM_UI.err = '终端渲染组件（xterm）没能加载：desktop/app/vendor/ 下的文件可能没打进去';
+    /* 组件是异步到的，而 termEnsurePane 在组件没就位时直接返回 null。
+       用户要是赶在这之前切进终端页，那一页会停在"有标签栏、没有会话"，
+       组件到位之后又没人再叫一次 —— 就那样一直空着。
+       和 termMount 里那一句不重复：那边管"组件已就位但没人发起"，
+       这句管"组件还没就位，发起也白发起"。 */
+    if (TERM_UI.loaded && state.page === 'term' && !(state.query && state.query.trim())) termMount();
+    return TERM_UI.loaded;
+  });
+  return TERM_UI.loading;
+}
+
+/* 终端配色跟着主题走。硬编码一套深色终端和"单主色 + 中性"的收敛方向
+   是冲突的 —— 每换一次主题，面板和终端会是两个世界。 */
+function termPalette(){
+  const cs = getComputedStyle(document.documentElement);
+  const g = k => (cs.getPropertyValue(k) || '').trim();
+  const bg = g('--paper-3') || '#FFFFFF';
+  const fg = g('--ink-1') || '#2B2119';
+  const cb = g('--cb') || ACC[0] || '#888888';
+  return Object.assign({}, TERM_ANSI, {
+    background: bg, foreground: fg,
+    cursor: cb, cursorAccent: bg,
+    selectionBackground: cb + '33'
+  });
+}
+/* 标签元数据（落盘的那一份） */
+function termList(){ return TOOL.terms; }
+function termRec(id){ return TOOL.terms.find(t => t.id === id); }
+function termActiveId(){
+  if (TERM_UI.active && termRec(TERM_UI.active)) return TERM_UI.active;
+  return TOOL.terms.length ? TOOL.terms[0].id : '';
+}
+function termActive(){ return termRec(termActiveId()); }
+function termPane(id){ return TERM_UI.pane[id] || null; }
+
+/* ---------- 标签操作 ---------- */
+function termAddTab(silent){
+  const rec = { id:'k' + uid(), name:'终端 ' + (TOOL.terms.length + 1),
+    profile:(state.settings.termProfile || 'powershell'), cwd:'', exit:null };
+  TOOL.terms.push(rec);
+  mark('terms');
+  TERM_UI.active = rec.id;
+  if (!silent){ refresh(['term']); }
+  termActivate(rec.id);
+  return rec;
+}
+function termCloseTab(id){
+  const rec = termRec(id);
+  if (!rec) return;
+  const pane = termPane(id);
+  const buf = pane ? termStrip(pane.buf).trim() : '';
+  const alive = pane && !pane.dead;
+  const doClose = () => {
+    termDropPane(id);
+    TOOL.terms = TOOL.terms.filter(t => t.id !== id);
+    mark('terms');
+    /* 关掉当前这个之后往后接一个，别让活动标签悬空。
+       全关光也允许 —— 空态（"还没有标签"）比"自动又给你开一个"更诚实。 */
+    TERM_UI.active = TOOL.terms.length ? TOOL.terms[0].id : '';
+    refresh(['term']);
+    if (TERM_UI.active) termActivate(TERM_UI.active);
+  };
+  /* 会话还活着且缓冲区里有东西时才问 —— 空标签、已退出的标签直接关，
+     多问一次只会让人以后习惯性地乱点"确定"。 */
+  if (alive && buf)
+    askConfirm('结束「' + rec.name + '」？',
+      '这个会话还在跑，关掉会直接结束里面的进程（没有正在运行的任务时也无妨）。', '结束会话', true)
+      .then(ok => { if (ok) doClose(); });
+  else doClose();
+}
+/* 丢掉一个标签的渲染实例，并结束它的会话。
+   DOM 也要一起摘掉，否则标签删了、xterm 那块画布还挂在常驻盒子里。 */
+function termDropPane(id){
+  if (DESK && JZ.pty) JZ.pty.kill(id);
+  const p = TERM_UI.pane[id];
+  if (!p) return;
+  if (p.term){ try { p.term.dispose(); } catch (e){} }
+  if (p.el && p.el.parentNode) p.el.parentNode.removeChild(p.el);
+  delete TERM_UI.pane[id];
+}
+/* 标签列表被**整体换掉**时跟着收尾（清空全部内容 / 恢复示例 / 导入存档）。
+   没有这一步的话：页面上的标签没了，而主进程里那些 powershell 还在跑 ——
+   用户既看不到也关不掉，那是真的进程泄漏，不只是"少画了一个东西"。
+   挂点选在 COLLECTIONS 里 terms 的 set 上：批量写只有那一个口子。 */
+function termPrune(){
+  const keep = {};
+  TOOL.terms.forEach(t => { keep[t.id] = 1; });
+  Object.keys(TERM_UI.pane).forEach(function (id){
+    if (!keep[id]) termDropPane(id);
+  });
+  if (TERM_UI.active && !keep[TERM_UI.active]) TERM_UI.active = '';
+}
+function termRenameTab(id){
+  const rec = termRec(id);
+  if (!rec) return;
+  askText('重命名标签', rec.name, '显示名，只是个名字').then(v => {
+    if (v == null) return;
+    rec.name = String(v).trim().slice(0, 40) || rec.name;
+    mark('terms');
+    termPaintTabs();
+    toast('已重命名为「' + rec.name + '」');
+  });
+}
+function termPickShell(id){
+  const rec = termRec(id);
+  if (!rec || !TERM_UI.avail) return;
+  const shells = TERM_UI.avail.shells || {};
+  /* askPick 决议的是选项里的 .k —— 所以 k 直接放 profile id，
+     不要把"下标"和"值"混着用（那是两套约定撞在一起最容易出的错）。 */
+  const opts = (TERM_UI.avail.profiles || []).map(p => {
+    const s = shells[p.id] || {};
+    return { k:p.id, ic:'terminal', label:p.name + (s.found === false ? '　（本机没找到）' : '') };
+  });
+  askPick('换成哪个 Shell？', opts).then(v => {
+      if (v == null) return;
+      rec.profile = v;
+      /* 记住这次的选择：下次「新建」直接用它，而不是每次都回到 PowerShell */
+      state.settings.termProfile = v;
+      saveSettings();
+      mark('terms');
+      if (DESK && JZ.pty) JZ.pty.kill(rec.id);
+      const pane = termPane(rec.id);
+      if (pane){
+        if (pane.term){ try { pane.term.dispose(); } catch (e){} }
+        if (pane.el && pane.el.parentNode) pane.el.parentNode.removeChild(pane.el);
+        delete TERM_UI.pane[rec.id];
+      }
+      refresh(['term']);
+      termActivate(rec.id);
+    });
+}
+
+/* ---------- xterm 实例 ---------- */
+function termEnsurePane(id){
+  const rec = termRec(id);
+  if (!rec || !TERM_UI.loaded) return null;
+  if (TERM_UI.pane[id]) return TERM_UI.pane[id];
+
+  const el = document.createElement('div');
+  el.className = 'tz-pane';
+  el.dataset.tid = id;
+  termBox().appendChild(el);
+
+  const term = new window.Terminal({
+    fontFamily: "ui-monospace, 'Cascadia Mono', 'Consolas', 'Courier New', monospace",
+    fontSize: 12.5,
+    lineHeight: 1.25,
+    cursorBlink: true,
+    scrollback: 5000,
+    allowProposedApi: true,
+    convertEol: false,
+    theme: termPalette()
+  });
+  const fit = new window.FitAddon.FitAddon();
+  term.loadAddon(fit);
+  term.open(el);
+
+  const pane = { term:term, fit:fit, el:el, buf:'', exit:null, cwd:'', lastCmd:'', dead:false };
+  TERM_UI.pane[id] = pane;
+
+  /* 这里只送键盘输入出去。**不要**在这里调 termEat ——
+     xterm 的 onData 是"用户敲了什么"，不是"终端输出了什么"；
+     把它当输出喂进缓冲区，会让"上一条命令 / 输出摘要"里混进你敲的字，
+     而且退出码会跟命令错位。真实输出走主进程推过来的 jz:pty。 */
+  term.onData(d => { if (DESK && JZ.pty) JZ.pty.input(id, d); });
+  /* 键盘之外还要能"贴一段"进去：Shift+Insert 是 Windows 上的通用习惯，
+     xterm 默认不认，得自己接。 */
+  term.attachCustomKeyEventHandler(function(e){
+    if (e.type === 'keydown' && e.key === 'Insert' && e.shiftKey){
+      termPasteTo(id); return false;
+    }
+    if (e.type === 'keydown' && e.ctrlKey && e.shiftKey && (e.key === 'C' || e.key === 'c')){
+      const sel = term.getSelection();
+      if (sel){ doCopy(sel, '选中内容'); return false; }
+    }
+    return true;
+  });
+  return pane;
+}
+/* 吃掉一段真实输出：更新退出码、当前目录，并记录最近一条命令。
+   这三件事必须在**同一条流**上做 —— 分成三处各自解析，退出码和它对应的
+   那条命令就会错位。 */
+function termEat(id, chunk){
+  const p = termPane(id);
+  if (!p) return;
+  p.buf += chunk;
+  /* 只留尾部：缓冲区是给"摘要 / 交给 AI"用的，留着整段历史只会吃内存 */
+  if (p.buf.length > 200000) p.buf = p.buf.slice(-120000);
+  /* 退出码与当前目录仍然要记账：标签菜单里的"结束并关闭"看 p.dead，
+     "打开当前目录"看 p.cwd，标签 title 也用它。撤掉的只是**画那条状态栏**
+     —— 终端的提示符本来就写着当前目录，退出码也在输出里。 */
+  const code = termExitCode(chunk);
+  if (code !== null) p.exit = code;
+  const cwd = termCwdOf(chunk);
+  if (cwd && cwd !== p.cwd){
+    p.cwd = cwd;
+    const rec = termRec(id);
+    if (rec){ rec.cwd = cwd; mark('terms'); }
+  }
+}
+function termFitSoon(){
+  requestAnimationFrame(function(){
+    const id = termActiveId();
+    const p = termPane(id);
+    if (!p) return;
+    try {
+      p.fit.fit();
+      if (DESK && JZ.pty && p.term) JZ.pty.resize(id, p.term.cols, p.term.rows);
+    } catch (e){ /* 面板收起时尺寸为 0，fit 会抛 —— 忽略即可，展开时会再调一次 */ }
+  });
+}
+function termActivate(id){
+  const rec = termRec(id);
+  if (!rec){ termPaintTabs(); return; }
+  TERM_UI.active = id;
+
+  const pane = termEnsurePane(id);
+  /* 只显示当前这个：xterm 在 display:none 时量不出尺寸，所以"藏"用
+     visibility 之外还必须让 fit 在显示之后才跑。 */
+  Object.keys(TERM_UI.pane).forEach(k => {
+    const e = TERM_UI.pane[k].el;
+    if (e) e.classList.toggle('on', k === id);
+  });
+
+  if (!DESK || !JZ.pty){ termPaintTabs(); return; }
+
+  JZ.pty.ensure(id, { cols:(pane && pane.term ? pane.term.cols : 100),
+                      rows:(pane && pane.term ? pane.term.rows : 28),
+                      profile: rec.profile, cwd: rec.cwd })
+    .then(function (r){
+      if (!r || !r.ok){
+        const why = (r && r.error) || '未知原因';
+        if (pane && pane.term) pane.term.writeln('\x1b[31m[会话起不来] ' + why + '\x1b[0m');
+        toast('终端起不来 · ' + why);
+      } else {
+        termFitSoon();
+        if (TERM_UI.pendingCmd){
+          const c = TERM_UI.pendingCmd;
+          TERM_UI.pendingCmd = '';
+          termRun(id, c);
+        }
+      }
+    });
+  termPaintTabs();
+  setTimeout(function(){ if (pane && pane.term){ try { pane.term.focus(); } catch (e){} } }, 60);
+}
+
+/* ---------- 界面绘制 ---------- */
+function termPaintTabs(){
+  const bar = document.getElementById('termTabs');
+  if (!bar) return;
+  const cur = termActiveId();
+  if (!TOOL.terms.length){
+    bar.innerHTML = '<span class="tz-empty">还没有标签 · 点右边「新建」开一个</span>';
+  } else {
+    bar.innerHTML = TOOL.terms.map(t => {
+      const p = termPane(t.id);
+      const dead = p && p.dead;
+      return '<span class="tz-tab' + (t.id === cur ? ' on' : '') + (dead ? ' dead' : '') + '"'
+        + ' data-kind="termtab" data-id="' + esc(t.id) + '" data-act="term-tab"'
+        + ' title="' + esc(t.name + ' · ' + (p && p.cwd ? p.cwd : (t.cwd || '主目录'))) + '">'
+        + IC('terminal', 12) + '<b>' + esc(t.name) + '</b>'
+        /* ⋯ 必须常态可见：改名字 / 换 Shell / 看输出摘要都住在右键菜单里，
+           而"只有右键"是用户明确否掉过的做法（"谁知道是啥啊"）。 */
+        + '<i class="tz-more ctx-more" data-act="ctx-open" title="更多操作">' + IC('more', 11) + '</i>'
+        + '<i class="tz-x" data-act="term-close" data-id="' + esc(t.id) + '" title="结束并关闭">' + IC('close', 10) + '</i>'
+        + '</span>';
+    }).join('');
+  }
+  const add = '<button class="tz-add" data-act="term-new" title="新建标签">' + IC('plus', 13) + '新建</button>';
+  /* 「全部结束」原来就常驻在「新建」旁边 —— 一个破坏性动作占着一个按钮位，
+     而下面还压着一面 16 键的预设墙和四个动作按钮。用户要的是"只留一个清爽的
+     大终端"，所以这些都收进这一个「更多」里。
+     注意：是**收进可见的入口**，不是删掉 —— 标签上那个 ⋯ 一样是常态可见的。 */
+  const more = '<button class="tz-all" data-act="term-more" title="更多">' + IC('more', 12) + '更多</button>';
+  bar.innerHTML = '<span class="tz-tabs">' + bar.innerHTML + '</span>' + add + more;
+}
+/* termPaintFoot 已删（2026-09-22）。那条状态栏显示的 Shell / 目录 / 状态 /
+   退出码 / 输出大小，全部在终端的提示符与输出里本来就有 —— 它是"重复一遍"
+   而不是"多知道一件事"。它真正独有的一条能力（点目录在资源管理器里打开）
+   搬进了「更多」菜单（termMoreMenu 的 cwd 项），没丢。
+   样式 .tz-foot / .tz-k / .tz-cwd / .tz-click / .tz-ok / .tz-bad 一并删掉：
+   留着不会有人看见，但下一个人会以为这些元素还在。 */
+function termShellName(id){
+  const prof = TERM_UI.avail && (TERM_UI.avail.profiles || []).find(p => p.id === id);
+  return prof ? prof.name : id;
+}
+
+/* ---------- 动作 ---------- */
+function termRun(id, cmd){
+  const line = String(cmd || '').trim();
+  if (!line) return;
+  const p = termPane(id);
+  if (!p) return;
+  if (!DESK || !JZ.pty){ toast('终端需要桌面版'); return; }
+  p.lastCmd = line;
+  JZ.pty.input(id, line + '\r');
+  try { p.term.focus(); } catch (e){}
+}
+/* 原来是 termRunPreset(btn)：从按钮的 data-cmd 里取命令。预设墙撤掉之后
+   没有那个按钮了，改成直接收命令文本。危险命令的确认逻辑一字未动 ——
+   这条不能被"界面变简单了"顺手带走。 */
+function termRunCmd(cmd){
+  const id = termActiveId();
+  if (!id){ termAddTab(); return; }
+  const line = String(cmd || '').trim();
+  if (!line) return;
+  if (termDangerous(line)){
+    askConfirm('这条命令有破坏性', '它可能删除或覆盖文件：\n\n' + line
+      + '\n\n终端里没有撤销，确认要执行吗？', '仍然执行', true)
+      .then(ok => { if (ok) termRun(id, line); });
+    return;
+  }
+  termRun(id, line);
+}
+/* 常用命令：从"一面墙"变成"一层浮层"。
+   每条都带上它**将要执行的命令原文**（askPick 的 desc）—— 要跑起来的东西，
+   用户有权在按下之前看见它到底要执行什么。墙上的按钮做不到这件事
+   （只有 title，鼠标悬停才有）。 */
+function termPresetPick(){
+  if (!termActiveId()){ termAddTab(); return; }
+  askPick('常用命令 · 选中即执行', TERM_PRESETS.map(function (x){
+    return { k:x.cmd, label:x.g + ' · ' + x.label, desc:x.cmd, ic:'terminal' };
+  })).then(function (cmd){ if (cmd) termRunCmd(cmd); });
+}
+/* 标签栏右边那个「更多」。原来这些东西各自常驻在页面上：
+   预设墙（16 键）、四个动作按钮、还有一个「全部结束」。
+   现在一处收口 —— 终端本身因此拿回整页。 */
+function termMoreMenu(){
+  const id = termActiveId();
+  if (!id){ termAddTab(); return; }
+  const p = termPane(id), rec = termRec(id);
+  const cwd = (p && p.cwd) || (rec && rec.cwd) || '';
+  const items = [
+    { k:'preset',  label:'常用命令…', desc:'16 条 · 选中即执行', ic:'terminal' },
+    { k:'copy',    label:'复制这个标签的全部输出', ic:'copy' },
+    { k:'sum',     label:'看输出摘要（折叠重复行）', ic:'layers' },
+    { k:'diag',    label:'把这个标签的现场交给 AI 诊断', ic:'bot' },
+    { k:'handoff', label:'生成交接摘要', ic:'note' }
+  ];
+  /* 状态条撤掉之后，它唯一独有的一条能力（点目录打开资源管理器）搬到这里。
+     只在真知道目录时才出现 —— 摆一个点了不知道会发生什么的项更糟。 */
+  if (cwd) items.push({ k:'cwd', label:'在资源管理器里打开当前目录', desc:termShort(cwd), ic:'folder' });
+  if (TOOL.terms.length > 1) items.push({ k:'killall', label:'结束全部会话', ic:'trash' });
+  askPick('终端 · 更多', items).then(function (k){
+    if (!k) return;
+    if (k === 'preset')  return termPresetPick();
+    if (k === 'copy')    return termCopyAll(id);
+    if (k === 'sum')     return termShowSummary(id);
+    if (k === 'diag')    return termToAsk(id, 'diag');
+    if (k === 'handoff') return termToAsk(id, 'handoff');
+    if (k === 'cwd')     return openReal('path', cwd, '在资源管理器中打开');
+    if (k === 'killall') return termKillAll();
+  });
+}
+function termCopyAll(id){
+  const p = termPane(id);
+  if (!p) return toast('这个标签还没有会话');
+  const txt = termStrip(p.buf).trim();
+  if (!txt) return toast('这个标签还没有输出');
+  doCopy(txt, '终端输出');
+}
+function termShowSummary(id){
+  const p = termPane(id);
+  if (!p) return toast('这个标签还没有会话');
+  const s = termSummarize(p.buf);
+  if (!s.text) return toast('这个标签还没有输出');
+  const saved = s.raw - s.kept;
+  askConfirm('输出摘要（' + s.raw + ' 行 → ' + s.kept + ' 行）',
+    '下面是把连续重复行折叠之后的结果，复制走可以直接喂给模型。\n\n'
+    + s.text.slice(-3000), '复制', false).then(ok => {
+      if (ok) doCopy(s.text, '输出摘要');
+    });
+}
+function termPasteTo(id){
+  const read = (DESK && JZ.clipboard) ? JZ.clipboard.read() : Promise.resolve({ ok:false, text:'' });
+  read.then(r => {
+    const t = r && r.ok ? String(r.text || '') : '';
+    if (!t) return toast('剪贴板里没有文本');
+    if (DESK && JZ.pty) JZ.pty.input(id, t.replace(/\r?\n/g, '\r'));
+    toast('已粘贴 ' + t.length + ' 字符');
+  });
+}
+function termContext(id){
+  const p = termPane(id);
+  const rec = termRec(id);
+  return {
+    shell: rec ? termShellName(rec.profile) : '',
+    cwd: p && p.cwd ? p.cwd : (rec ? rec.cwd : ''),
+    exit: p ? p.exit : null,
+    cmd: p ? p.lastCmd : '',
+    out: p ? termStrip(p.buf) : ''
+  };
+}
+/* 关键的一步：把现场交给**速问**，而不是在终端里另起一套对话框。
+   三个理由：① 聚珍的速问已经是完整的多轮对话与历史体系，再造一套只会
+   多一个要维护的地方；② 现场问题往往要追问，"一次性粘贴给一个 API"
+   反而不好用；③ 发送前用户能看见并编辑，误发的成本是 0。 */
+function termToAsk(id, kind){
+  const x = termContext(id);
+  const txt = (x.out || '').trim();
+  if (!txt) return toast('这个标签还没有输出，没什么可分析的');
+  const prompt = kind === 'diag' ? termDiagPrompt(x) : termHandoffPrompt(x);
+  switchPage('ask');
+  const box = $('askInput');
+  if (box){
+    box.value = prompt;
+    box.focus();
+    try { box.setSelectionRange(box.value.length, box.value.length); } catch (e){}
+  }
+  toast(kind === 'diag'
+    ? '已把终端现场填进速问 · 点发送开始诊断'
+    : '已把终端现场填进速问 · 点发送生成交接摘要');
+}
+function termKillAll(){
+  if (!TOOL.terms.length) return toast('还没有标签');
+  askConfirm('结束全部会话？', TOOL.terms.length + ' 个标签里的进程都会结束。标签本身保留，'
+    + '下次点进去会重开一个新会话。', '全部结束', true).then(ok => {
+      if (!ok) return;
+      if (DESK && JZ.pty) JZ.pty.killAll();
+      Object.keys(TERM_UI.pane).forEach(k => {
+        const p = TERM_UI.pane[k];
+        p.dead = true;
+        p.exit = null;
+        p.buf = '';
+        if (p.term){ try { p.term.reset(); } catch (e){} }
+      });
+      termPaintTabs();
+      toast('已结束全部会话 · 敲任意键会重开');
+    });
+}
+
+/* ---------- 进入 / 离开终端页 ----------
+   用户明确要求的语义：**进终端页自动钉住，退出就恢复**。
+   为什么必须这么做：面板原本是"鼠标一离开 520ms 收、失焦即收"，而终端
+   恰恰是要长时间专注输入的东西 —— 切到别的窗口看一眼，会话就没了。
+   另外热区唤出走的是 showInactive()（刻意不抢焦点），那种状态下敲字
+   一个字符都进不去，所以还要显式要一次焦点。 */
+function termEnter(){
+  if (TERM_UI.pinSaved === null) TERM_UI.pinSaved = !!state.pinned;
+  if (!state.pinned){
+    /* 只改运行时真相，不写设置、不弹吐司 —— 这是终端借用钉住态，
+       不是用户改了偏好。退出时必须能原样还回去。 */
+    state.pinned = true;
+    if (DESK && JZ.setPinned) JZ.setPinned(true);
+    $('panel').classList.add('pinned');
+    $('btnPin').classList.add('on');
+    $('pinTxt').textContent = '已盯住（终端会话占用中）· 离开终端板块会自动恢复';
+  }
+  if (DESK && JZ.focusPanel) JZ.focusPanel();
+  /* 第一次进来时自动开一个标签。这不是"演示数据"——它是"点开终端就该
+     有一个终端"。真的一个标签都不留的时机只有一个：用户自己全关掉之后
+     （那时页面上的空态和「新建」都在，不会被这一句又顶回一个）。 */
+  if (DESK && TERM_UI.avail && TERM_UI.avail.ok && !TOOL.terms.length){
+    termAddTab(true);
+    refresh(['term']);
+  }
+  termPaintTabs();
+  termFitSoon();
+}
+function termLeave(){
+  if (TERM_UI.pinSaved === null) return;
+  if (TERM_UI.pinSaved) { TERM_UI.pinSaved = null; return; }  /* 本来就是用户自己钉的，别动 */
+  TERM_UI.pinSaved = null;
+  state.pinned = false;
+  if (DESK && JZ.setPinned) JZ.setPinned(false);
+  $('panel').classList.remove('pinned');
+  $('btnPin').classList.remove('on');
+  $('pinTxt').textContent = '';
+}
+/* 页内搜索会把正文换成跨板块结果页 —— 那时终端 DOM 被摘走了，
+   但"人还在终端页"这个事实没变，钉住态不该被释放。 */
+function termSyncPin(){
+  if (state.page === 'term' && !(state.query && state.query.trim())) termEnter();
+  else termLeave();
+}
+
+/* ---------- 页面 ---------- */
+function buildTerm(){
+  const p = PAGE_MAP.term;
+  const n = TOOL.terms.length;
+  const av = TERM_UI.avail;
+  let html = pageHead(p, n
+    ? (n + ' 个标签 · ' + (DESK ? '真实 ConPTY 会话，vim / 交互式 CLI 都能跑' : '需要桌面版'))
+    : '新建一个标签开始 · 会话里 vim / top / CLI 都能跑');
+
+  /* 三种"还不能用"分开说，因为原因不同、出路也不同：
+     还在探测 / 能力不可用（浏览器原型就属于这一档，why 里写着真实原因）/
+     以及正常可用。**只有一条渲染路径** —— 靠 av.ok 分流，而不是写一段
+     "浏览器专用版"。两段代码的后果是浏览器那一段永远没人读、也没人验。 */
+  if (!av){
+    html += '<div class="tz-panel">' + IC('terminal', 16)
+      + '<div class="tz-why"><b>正在检查终端能力…</b>'
+      + '<span>问一下这个环境有没有真实的系统会话能力。没有结果之前不摆输入框，'
+      + '免得点了一个还不知道能不能用的东西。</span></div></div>';
+    return html;
+  }
+  if (!av.ok){
+    html += '<div class="tz-panel bad">' + IC('terminal', 16)
+      + '<div class="tz-why"><b>终端不可用</b>'
+      + '<span>' + esc(av.why || '原因未知')
+      + '　这一栏不会假装可用 —— 报出来的就是真实原因。</span></div></div>';
+    return html;
+  }
+  const miss = (av.shells && av.shells.pwsh && !av.shells.pwsh.found)
+    ? '本机没有 PowerShell 7（pwsh），标签里可以选 Windows PowerShell / cmd / WSL。' : '';
+  TERM_PWSH_MISS = miss;
+
+  /* 这一页只剩两层：标签栏 + 终端。终端拿满剩下的高度。
+     撤掉的东西与原处：
+       · 16 个预设命令按钮（一面墙）  → 「更多」→「常用命令…」
+       · 复制输出 / 摘要 / AI 诊断 / 交接（四个按钮）→ 「更多」+ 标签的 ⋯
+       · 状态条（Shell/目录/状态/退出码/输出）→ 删（终端里本来就有）
+       · 四行静态说明 → 页头的 ⓘ（PAGE_INFO.term） */
+  html += '<div class="tz-bar" id="termTabs"></div>';
+  html += '<div class="tz-main"><div id="termMount" class="tz-host"></div></div>';
+  return html;
+}
+/* pwsh 缺失这件事照实说，但它只在真缺的时候才有一句话 —— 所以它是 ⓘ 的
+   一条内容，不是正文里的一段常驻文字。写成函数是因为它依赖渲染时的探测结果。 */
+var TERM_PWSH_MISS = '';
+PAGE_INFO.term = function (){
+  const L = [
+    DESK
+      ? '这是真的终端，不是命令预览框：每个标签是一个独立的系统会话，'
+        + '在里面跑 vim、top、Claude Code 这类交互式程序都可以。'
+      : '浏览器原型里没有终端：这一页只做说明。桌面版走的是真实 ConPTY 会话。',
+    '快捷键：Ctrl+Shift+C 复制选中 · Shift+Insert 粘贴剪贴板 · Tab 补全（由 Shell 提供）· '
+      + '标签上的 ⋯ 可改名 / 换 Shell / 看输出摘要 / 交给 AI / 结束会话。',
+    '会话活在主进程里，离开终端板块不会杀掉它 —— 但为了让终端能长时间专注输入，'
+      + '进这一页时会自动把面板设为钉住，离开时恢复原来的设置。',
+    '标签列表会随存档一起导出，但进程不会：重新打开聚珍时标签还在，'
+      + '里面的会话是新开的（上次那些进程在退出时就被收掉了）。'
+  ];
+  if (TERM_PWSH_MISS) L.push(TERM_PWSH_MISS);
+  return L;
+};
+

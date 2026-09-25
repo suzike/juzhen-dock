@@ -1,0 +1,11 @@
+const fs = require('fs');
+const gbk = Buffer.from('bedbd5e4d7d4bcecc3fcc1eecae4b3f6', 'hex');
+const cp = s => Array.from(s).map(c => c.codePointAt(0).toString(16)).join(' ');
+const o = [];
+o.push('gbk over full buffer  -> ' + cp(new TextDecoder('gbk').decode(gbk)));
+o.push('expect                -> 805a 73cd 81ea 68c0 547d 4ee4 8f93 51fa');
+o.push('gb18030 over full     -> ' + cp(new TextDecoder('gb18030').decode(gbk)));
+o.push('utf8 strict throws    -> ' + (() => { try { new TextDecoder('utf-8',{fatal:true}).decode(gbk); return 'no'; } catch(e){ return 'yes'; } })());
+o.push('mixed utf8 then gbk   -> ' + cp(new TextDecoder('gbk').decode(gbk)));
+fs.writeFileSync(__dirname + '/_tdtest4.txt', o.join('\n'), 'utf8');
+console.log(o.join('\n'));
