@@ -1210,6 +1210,25 @@ if (process.env.JZ_DIAG){
              这里窗口一定可见，量到的才是真话：图看着空白，就得能指着它说
              "是没起会话"还是"起了但没画出来"。 */
           if (pg === 'term'){
+            /* 先让终端里有一点真实输出，再截图。
+               空终端 + 一个光标说明不了"这是真 ConPTY 会话"，而"真终端"
+               恰好是这个板块唯一的卖点 —— README 要用这张图。走用户自己的
+               入口 termRunCmd，不绕过它那里的危险命令确认那一层。 */
+            /* 命令要**短输出**：终端面板只有 54 列，dir 那种宽输出会被硬折成
+               每行三四个字符，截出来完全不能看（第一版就是这么废掉的）。 */
+            const runRes = [];
+            for (const c of ['git --version', 'node --version', 'Get-Location']){
+              runRes.push(await win.webContents.executeJavaScript(
+                '(function(){ try{ termRunCmd(' + JSON.stringify(c) + '); return "ok"; }'
+                + ' catch(e){ return "err:" + e.message; } })()'));
+              await new Promise(r => setTimeout(r, 450));
+            }
+            o.push('  终端里跑了 3 条命令 → ' + runRes.join(','));
+            await new Promise(r => setTimeout(r, 1300));
+            const pf = await win.webContents.capturePage();
+            const ff = path.join(app.getPath('userData'), '_desk_term.png');
+            fs.writeFileSync(ff, pf.toPNG());
+            o.push('  等输出落定后重截 → ' + fs.statSync(ff).size + ' B');
             const paint = JSON.parse(await win.webContents.executeJavaScript(
               '(function(){ var pk = Object.keys(TERM_UI.pane); var p = pk.length ? TERM_UI.pane[pk[0]] : null;'
               + ' var xr = document.querySelector("#termMount .xterm-rows");'

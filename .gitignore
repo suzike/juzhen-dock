@@ -41,6 +41,10 @@ out/
 !/juzhen-dock/_psraw.js
 !/juzhen-dock/_inkcheck.js
 
+# README 配图：拍摄脚本与裁切压缩脚本（拍出来的图在 docs/screenshots/）
+!/juzhen-dock/_shots21.js
+!/juzhen-dock/_shotscut.py
+
 # 模块级单元测试（纯 Node，不依赖 Electron）
 !/juzhen-dock/_aitest.js
 !/juzhen-dock/_llmtest.js

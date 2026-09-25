@@ -1,16 +1,19 @@
 # 聚珍 · Juzhen Dock
 
-![version](https://img.shields.io/badge/version-0.5.0-blue)
+![version](https://img.shields.io/badge/version-0.5.1-blue)
 ![platform](https://img.shields.io/badge/platform-Windows-lightgrey)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
 **常驻 Windows 屏幕右侧的桌面入口。** 鼠标碰到屏幕右缘即滑出，离开自动收起；
 文件夹、网址、剪贴板、真终端、AI 速问都在一层之内，不用切窗口、不用找图标。
 
-整个项目只有一份 UI 源码，同时产出**浏览器原型**与 **Electron 桌面版**两种形态。
+<p align="center">
+  <img src="docs/screenshots/01-today.png" alt="聚珍主界面 · 今日概览" width="620">
+</p>
+<p align="center"><sub>今日概览 —— 左边是桌面，右边是面板。待办、最近使用、场景，一屏看全</sub></p>
 
 > **直接下载桌面版**（免安装、免 Node 环境）：
-> [聚珍 v0.5.0 便携版 · Windows x64](https://github.com/suzike/juzhen-dock/releases/latest)
+> [聚珍 v0.5.1 便携版 · Windows x64](https://github.com/suzike/juzhen-dock/releases/latest)
 >
 > 首次启动若被 SmartScreen 拦下，选「更多信息 → 仍要运行」。源码全部公开，可自行构建复核。
 
@@ -37,47 +40,139 @@
 | | AI 速问 | 唤出即问，可一键存入速记 |
 | **系统** | 设置 | 配色、触发方式与显示方式 |
 
-另有**窗口分区**：一键把桌面上散乱的窗口整理到预设分区，并支持还原。
+### 文件与内容按用途自动归类
+
+<p align="center">
+  <img src="docs/screenshots/02-folders.png" alt="文件夹直达" width="560">
+</p>
+
+不用手工建分组：按父目录自动归类。每条右侧的 `⋯` 是**看得见**的编辑入口 ——
+改文件名、删条目都不靠右键，右键菜单在这里一律做成常显按钮。
+
+<p align="center">
+  <img src="docs/screenshots/03-staging.png" alt="临时暂存" width="560">
+</p>
+
+临时暂存走**引用式**记录：条目只存路径与摘要，点标题即预览，**原文件不受影响**。
+
+### 工程换算按专业需求内置
+
+<p align="center">
+  <img src="docs/screenshots/04-calc.png" alt="工程换算" width="560">
+</p>
+
+不是通用单位转换器：单位换算、湿空气、PMV 热舒适三块，按热管理与空调开发的实际口径做。
+
+### 搜索是全局的
+
+<p align="center">
+  <img src="docs/screenshots/06-search.png" alt="全局搜索" width="560">
+</p>
+
+`Ctrl K` 唤出，一次跨全部 14 个板块检索 —— 板块本身、条目、片段、网址都在结果里。
+新增板块只需在 `searchGroups()` 补一条来源，不用改动搜索界面。
 
 ---
 
-## 二、两种形态
+## 二、终端
 
-### 1. 浏览器原型（零依赖）
+**真 ConPTY 会话，不是模拟终端。** 面板宽 580 px，终端占正文容器约 0.78 的高度。
 
-```
-juzhen-dock/prototype.html
-```
+<p align="center">
+  <img src="docs/screenshots/09-terminal.png" alt="终端" width="560">
+</p>
 
-**单文件、563 KB、双击即开。** 全部 CSS、JS、插画、图标都内联在一个 HTML 里，
-不需要 `npm install`，不需要构建。适合快速看效果、改样式、做设计评审。
+这个板块是「撤掉常驻、保住功能」这条准则的样板：原来堆在页面里的五层东西
+（预设命令墙、状态条、四行静态说明、标签栏按钮）全撤了，只剩标签栏 + 终端本体。
+撤掉的东西**一条没丢**，都收进了两个可见入口：
 
-浏览器里桌面版专有的能力（真实终端、窗口分区、贴图钉屏）不会渲染 —— 这是设计，
-不是缺陷：一份源码靠 `window.JZ` 分流，见「架构」。
+- **页头 ⓘ** —— 键位、会话生命周期、pwsh 依赖，写在这里
+- **标签栏「更多」** —— 常用命令、复制、会话摘要、AI 诊断、交接记录
 
-### 2. Electron 桌面版
+<p align="center">
+  <img src="docs/screenshots/10-terminal-more.png" alt="终端 · 更多" width="560">
+</p>
 
-```
-juzhen-dock/desktop/
-```
-
-```bash
-cd juzhen-dock/desktop
-npm install
-npm start                 # 开发运行
-
-npm run pack              # 打包便携版 exe → dist/聚珍-<版本>-便携版.exe
-```
-
-> `.npmrc` 已配置 npmmirror 镜像，国内网络可直接安装。
+常用命令是二级浮层，**每条都带着它将要执行的命令原文** —— 要跑起来的东西，
+用户有权在按下之前看见它到底要执行什么。墙上的按钮做不到这件事（只有悬停才有 title）。
 
 ---
 
-## 三、架构
+## 三、窗口分区
+
+**触发是一键整理，不自动动手。** 带「还原窗口」，绝不自动搬用户的窗口。
+
+<p align="center">
+  <img src="docs/screenshots/11-zones.png" alt="窗口分区" width="560">
+</p>
+
+诚实设计写进了实现里，一条都没省：
+
+- 只动「看得见 + 有标题 + 普通」的顶层窗口；
+- **每一条跳过都带原因回到界面**，不静默忽略；
+- 窗口多于分区时进 `extra` 列表，**不叠上去**；
+- 成功后写 `zones-last.json`，才谈得上还原；
+- 多屏按「光标所在屏」计算。
+
+实现游走在纯 Node（矩形计算）与 PowerShell（`SetWindowPos` 摆位）之间：
+中文窗口标题走 JSON 传递，不进脚本正文；判定用 **`JZJ:` 哨兵**定位返回值。
+`Add-Type` 编译不出来时**带着原因失败**，绝不吐一个「整理好了，0 个窗口」。
+
+---
+
+## 四、AI 与知识库
+
+**8 家对话服务商 + 5 家嵌入服务商**，各自独立配置地址与模型名。
+换服务商时地址与模型名自动跟着换，**绝不复用 A 家的 Key 给 B 家**。
+
+<p align="center">
+  <img src="docs/screenshots/12-ai-models.png" alt="AI 服务商与模型名" width="560">
+</p>
+
+- **Key 存本机**：`settings.ai.keys[provider]`，明文存于本机 `localStorage`
+  与 `userData`。不上传、不入库、不同步。
+- **模型名带候选名单**：填的名字不在服务商自家名单里时，界面告警并允许点选 ——
+  手抄的模型名会错，而且错得**像是网络问题**（这条是踩过坑之后加的）。
+- **知识库诚实边界**：开启「只看知识库」时，若不可用 / 失败 / 无命中，
+  **明确拒绝作答并说明原因**，绝不静默降级成模型自答；非该模式则声明
+  「这条回答没接地」。
+- 网页抓取**不执行 JavaScript**，抓不到就如实报错，不假装拿到了内容。
+
+---
+
+## 五、配色
+
+九套主题，每套**只变三样东西**：一套纸面、一套墨色、**一个主色**。
+主色只出现在小面积点缀处（选中项、图标底、分组标题前那道短色条），
+其余一律走墨色深浅 —— 大面积铺色会「花」。
+
+<p align="center">
+  <img src="docs/screenshots/05-themes.png" alt="配色主题" width="560">
+</p>
+
+色块不是示意，是**实际渲染色**。同一页换一套主色（青花瓷）：
+
+<p align="center">
+  <img src="docs/screenshots/08-theme-blue.png" alt="青花瓷主题" width="560">
+</p>
+
+界面透明度是一根总控（30–100），推算出每一层的 alpha，而不是只改面板底色 ——
+只改面板会让四层材质挤在一起。验收不看截图看算出来的 alpha 值：
+30% 与 100% 的截图差别很淡，"看着差不多"可能真没生效。
+
+---
+
+## 六、架构
+
+**整个项目只有一份 UI 源码，同时产出浏览器原型与 Electron 桌面版两种形态。**
+
+<p align="center">
+  <img src="docs/architecture.svg" alt="聚珍架构图" width="100%">
+</p>
 
 ### 单文件构建流水线
 
-**不维护两份 UI。** `_build.js` 按固定顺序拼装源码片段，一次产出两个产物：
+`_build.js` 按固定顺序拼装源码片段，一次产出两个产物：
 
 ```
 _js_a.txt  ─┐                     ┌─→ prototype.html        （浏览器原型）
@@ -87,14 +182,13 @@ _js_b.txt  ─┼─→ _build.js ────────┤
 _tools.txt ─┤   （含 27 条守卫）   │
 _term.txt  ─┤                     └─→ desktop/app/index.html （Electron 前端）
 _js_c.txt  ─┘
-
-_css.txt  ──→ 内联进以上两者
+_css.txt   ──→ 内联进以上两者
 ```
 
-分部件的理由：`_js_c.txt` 是 270 KB 的巨型文件，整文件改动的评审成本过高；
-拆成 8 个片段后，改配色只碰 `_css.txt`，改终端只碰 `_term.txt`。
+拆成 8 个片段的理由：`_js_c.txt` 是 270 KB 的巨型文件，整文件改动的评审成本过高。
+拆开之后，改配色只碰 `_css.txt`，改终端只碰 `_term.txt`。
 
-**`_term.txt` 必须排在 `_js_c.txt` 之前** —— 后者末尾是启动序列。
+> **`_term.txt` 必须排在 `_js_c.txt` 之前** —— 后者末尾是启动序列。
 
 ### 桌面版与浏览器版的分流
 
@@ -104,6 +198,7 @@ const DESK = !!(window.JZ && window.JZ.isDesktop);
 
 同一份 `index.html`：浏览器里 `window.JZ` 不存在 → 纯前端模式；
 Electron 里 `preload.js` 注入 `window.JZ` → 启用真实终端、窗口分区等原生能力。
+**不维护两份 UI。**
 
 ### Electron 侧模块
 
@@ -120,9 +215,29 @@ Electron 里 `preload.js` 注入 `window.JZ` → 启用真实终端、窗口分�
 热区判定靠主进程以 40 ms 轮询 `screen.getCursorScreenPoint()`（因此不依赖任何原生模块），
 判定逻辑抽成纯函数以便喂坐标自检 —— **自检不会真去移动用户的鼠标。**
 
+### 两种形态怎么选
+
+```
+juzhen-dock/prototype.html     # 单文件 563 KB、双击即开、零依赖
+juzhen-dock/desktop/           # Electron 桌面版
+```
+
+```bash
+cd juzhen-dock/desktop
+npm install
+npm start                 # 开发运行
+
+npm run pack              # 打包便携版 exe → dist/聚珍-<版本>-便携版.exe
+```
+
+> `.npmrc` 已配置 npmmirror 镜像，国内网络可直接安装。
+
+浏览器原型里桌面版专有的能力（真实终端、窗口分区、贴图钉屏）不会渲染 ——
+这是设计，不是缺陷。
+
 ---
 
-## 四、验证体系
+## 七、验证体系
 
 这个项目的验证不靠"看着没问题"，靠**可执行判据**。
 
@@ -156,7 +271,6 @@ _probe23.js   可见入口审计
 _probe28.js   主题与 WCAG 对比度
 _probe29.js   终端页（116 项）
 _probe32.js   透明度（按 alpha 断言，不看截图）
-...
 ```
 
 **验收读数字，不读截图** —— 30% 与 100% 透明度的截图差别很淡，
@@ -171,7 +285,7 @@ node _kbtest.js      # 知识库检索
 node _termtest.js    # 终端
 node _pmvtest.js     # PMV 热舒适模型
 node _zonetest.js    # 窗口分区矩形计算
-node _zonerun.js     # 窗口分区真跑一次 PowerShell
+node _zonerun.js     # 窗口分区真跑一次脚本
 ```
 
 ### 4. Electron 端自检
@@ -187,23 +301,7 @@ JZ_DIAG=1 electron desktop --disable-gpu --disable-software-rasterizer --no-sand
 
 ---
 
-## 五、AI 与知识库
-
-**8 家对话服务商 + 5 家嵌入服务商**，各自独立配置地址与模型名。
-换服务商时地址与模型名自动跟着换，**绝不复用 A 家的 Key 给 B 家**。
-
-- **Key 存本机**：`settings.ai.keys[provider]`，明文存于本机 `localStorage`
-  与 `userData`。不上传、不入库、不同步。
-- **模型名带候选名单**：预设名不在服务商自家名单里时界面告警并允许点选 ——
-  手抄的模型名会错，而且错得**像是网络问题**。
-- **知识库诚实边界**：开启「只看知识库」时，若不可用 / 失败 / 无命中，
-  **明确拒绝作答并说明原因**，绝不静默降级成模型自答；非该模式则声明
-  「这条回答没接地」。
-- 网页抓取**不执行 JavaScript**，抓不到就如实报错，不假装拿到了内容。
-
----
-
-## 六、已知边界
+## 八、已知边界
 
 以下项目**当前未实现**，界面以灰标签标注现状，不留"点得动、点了没反应"的开关：
 
@@ -223,10 +321,14 @@ JZ_DIAG=1 electron desktop --disable-gpu --disable-software-rasterizer --no-sand
 
 ---
 
-## 七、目录结构
+## 九、目录结构
 
 ```
 .
+├── README.md
+├── docs/
+│   ├── architecture.svg       # 架构图（矢量，可用浏览器打开）
+│   └── screenshots/           # 本文所有截图
 ├── juzhen-dock/
 │   ├── _build.js              # 构建 + 27 条守卫
 │   ├── _js_a.txt              # ┐
@@ -238,9 +340,11 @@ JZ_DIAG=1 electron desktop --disable-gpu --disable-software-rasterizer --no-sand
 │   ├── _js_c.txt              # ┘（270 KB，必须最后拼）
 │   ├── _css.txt               # 样式（内联进产物）
 │   ├── prototype.html         # ★ 构建产物 · 浏览器原型，双击即开
+│   ├── _shots21.js            # README 配图的拍摄脚本
+│   ├── _shotscut.py           # 配图的裁切与压缩
 │   ├── _probe*.js             # 走查探针
 │   ├── _zonetest.js           # 窗口分区：矩形计算
-│   ├── _zonerun.js            # 窗口分区：真跑 PowerShell
+│   ├── _zonerun.js            # 窗口分区：真跑一次脚本
 │   ├── _*test.js              # 模块级单元测试
 │   └── desktop/               # ★ Electron 桌面版
 │       ├── main.js            #   主进程
@@ -260,8 +364,21 @@ JZ_DIAG=1 electron desktop --disable-gpu --disable-software-rasterizer --no-sand
 > git submodule update --init --recursive
 > ```
 
+### 本文配图怎么来的
+
+截图**不是另画的示意图**，是脚本从产物本身拍的 —— 示意图会跟真身走散。
+
+```bash
+cd juzhen-dock
+node _shots21.js                               # 无头 Chrome 逐页拍浏览器原型
+python _shotscut.py                            # 裁掉面板外的留白 + 调色板量化
+```
+
+桌面版专有的页面（终端、窗口分区）浏览器里拍不出来，取自 Electron 自检的落盘截图。
+`_shots21.js` 冻结了入场动效再拍，否则每张图截在动画的不同帧上，元素位置对不齐。
+
 ---
 
-## 八、许可
+## 十、许可
 
 MIT，见 [LICENSE](LICENSE)。

@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 546" width="900" height="546" role="img" aria-label="聚珍架构：一份源码片段经 _build.js 产出两个产物，Electron 侧经 preload 桥分到五个模块">
+  <!-- 着色全部写成元素属性，不用 <style>/class：
+       GitHub 渲染仓库内 SVG 时会过一遍清洗，标签选择器有被剥掉的风险，
+       一旦剥掉，整张图会变成默认黑底黑字。 -->
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#BCAA90"/>
+    </marker>
+  </defs>
+
+  <rect width="900" height="546" fill="#FBF5EA"/>
+
+  <!-- ══════════ 构建期 ══════════ -->
+  <text x="24" y="26" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="12" font-weight="600" fill="#796956" letter-spacing="0.6">构 建 期</text>
+
+  <rect x="24" y="38" width="176" height="152" rx="10" fill="#FDFAF4" stroke="#E6D9C3" stroke-width="1.2" stroke-dasharray="5 4"/>
+  <text x="36" y="56" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="11" fill="#5A4C3C">源码片段 · 8 个</text>
+  <g font-family="Cascadia Mono, Consolas, monospace" font-size="10.5" fill="#2B2119">
+    <text x="36" y="82">_js_a.txt</text>  <text x="116" y="82">_icons.txt</text>
+    <text x="36" y="114">_illus.txt</text> <text x="116" y="114">_js_b.txt</text>
+    <text x="36" y="146">_tools.txt</text> <text x="116" y="146">_term.txt</text>
+    <text x="36" y="178">_js_c.txt</text>  <text x="116" y="178">_css.txt</text>
+  </g>
+
+  <line x1="200" y1="114" x2="242" y2="114" stroke="#BCAA90" stroke-width="1.2" fill="none" marker-end="url(#ar)"/>
+
+  <rect x="246" y="80" width="112" height="68" rx="10" fill="#FFFFFF" stroke="#E6D9C3" stroke-width="1.2"/>
+  <text x="302" y="106" text-anchor="middle" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#2B2119">_build.js</text>
+  <text x="302" y="124" text-anchor="middle" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#796956">27 条构建守卫</text>
+
+  <path d="M358,114 L382,114 L382,64 L402,64" stroke="#BCAA90" stroke-width="1.2" fill="none" marker-end="url(#ar)"/>
+  <path d="M358,114 L382,114 L382,164 L402,164" stroke="#BCAA90" stroke-width="1.2" fill="none" marker-end="url(#ar)"/>
+
+  <rect x="406" y="38" width="240" height="52" rx="10" fill="#FFFFFF" stroke="#E6D9C3" stroke-width="1.2"/>
+  <text x="424" y="60" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#2B2119">prototype.html</text>
+  <text x="424" y="78" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#796956">单文件 563 KB · 双击即开 · 零依赖</text>
+
+  <rect x="406" y="138" width="240" height="52" rx="10" fill="#FFFFFF" stroke="#E6D9C3" stroke-width="1.2"/>
+  <text x="424" y="160" font-family="Cascadia Mono, Consolas, monospace" font-size="11.5" font-weight="600" fill="#2B2119">desktop/app/index.html</text>
+  <text x="424" y="178" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#796956">同一份源码 · 靠 window.JZ 分流</text>
+
+  <text x="666" y="60" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#796956">直接看效果</text>
+  <text x="666" y="76" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#796956">改样式、做评审</text>
+  <text x="666" y="160" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#796956">启用真实终端、</text>
+  <text x="666" y="176" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#796956">窗口分区等原生能力</text>
+
+  <!-- ══════════ 运行期 ══════════ -->
+  <text x="24" y="236" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="12" font-weight="600" fill="#796956" letter-spacing="0.6">运 行 期</text>
+
+  <rect x="24" y="252" width="180" height="62" rx="10" fill="#FFFFFF" stroke="#E6D9C3" stroke-width="1.2"/>
+  <text x="114" y="276" text-anchor="middle" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#2B2119">渲染进程</text>
+  <text x="114" y="294" text-anchor="middle" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#796956">界面与交互</text>
+
+  <line x1="204" y1="283" x2="244" y2="283" stroke="#BCAA90" stroke-width="1.2" fill="none" marker-end="url(#ar)"/>
+
+  <rect x="248" y="252" width="180" height="62" rx="10" fill="#FFFFFF" stroke="#E6D9C3" stroke-width="1.2"/>
+  <text x="338" y="276" text-anchor="middle" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#2B2119">preload.js</text>
+  <text x="338" y="294" text-anchor="middle" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#796956">唯一的桥 · 逐条白名单</text>
+
+  <line x1="428" y1="283" x2="468" y2="283" stroke="#BCAA90" stroke-width="1.2" fill="none" marker-end="url(#ar)"/>
+
+  <rect x="472" y="252" width="200" height="62" rx="10" fill="#FFFFFF" stroke="#E6D9C3" stroke-width="1.2"/>
+  <text x="572" y="276" text-anchor="middle" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#2B2119">main.js</text>
+  <text x="572" y="294" text-anchor="middle" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#796956">窗口策略 · 热区轮询 40 ms</text>
+
+  <!-- main.js 与下方模块不连线：接到横贯的组标题线上会看成"这条线断在这"，
+       分组靠标题 + 横向分隔线已经说清楚了。 -->
+
+  <text x="24" y="372" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="11" font-weight="600" fill="#796956">主 进 程 模 块</text>
+  <line x1="24" y1="380" x2="876" y2="380" stroke="#E6D9C3" stroke-width="1.2"/>
+
+  <rect x="24" y="396" width="196" height="62" rx="10" fill="#FFFFFF" stroke="#E6D9C3" stroke-width="1.2"/>
+  <text x="122" y="420" text-anchor="middle" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#2B2119">term.js</text>
+  <text x="122" y="438" text-anchor="middle" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#796956">真 ConPTY 会话 · 多标签</text>
+
+  <rect x="236" y="396" width="196" height="62" rx="10" fill="#FFFFFF" stroke="#E6D9C3" stroke-width="1.2"/>
+  <text x="334" y="420" text-anchor="middle" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#2B2119">ai.js</text>
+  <text x="334" y="438" text-anchor="middle" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#796956">8 家对话 + 5 家嵌入服务商</text>
+
+  <rect x="448" y="396" width="196" height="62" rx="10" fill="#FFFFFF" stroke="#E6D9C3" stroke-width="1.2"/>
+  <text x="546" y="420" text-anchor="middle" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#2B2119">kb.js</text>
+  <text x="546" y="438" text-anchor="middle" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#796956">知识库：切片 · 嵌入 · 检索</text>
+
+  <rect x="660" y="396" width="216" height="62" rx="10" fill="#FFFFFF" stroke="#E6D9C3" stroke-width="1.2"/>
+  <text x="768" y="420" text-anchor="middle" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="13" font-weight="600" fill="#2B2119">zones.js</text>
+  <text x="768" y="438" text-anchor="middle" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#796956">窗口分区 · 矩形计算 + 脚本执行</text>
+
+  <text x="24" y="492" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#796956">四个模块都是纯 Node：不依赖 Electron，可以单独用 node 跑单元测试与探针</text>
+  <text x="24" y="512" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="10" fill="#796956">原生能力只经 main.js 暴露给渲染进程；桥上每条能力都有构建期守卫盯着「是否真有调用」</text>
+</svg>
