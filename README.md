@@ -9,6 +9,11 @@
 
 整个项目只有一份 UI 源码，同时产出**浏览器原型**与 **Electron 桌面版**两种形态。
 
+> **直接下载桌面版**（免安装、免 Node 环境）：
+> [聚珍 v0.5.0 便携版 · Windows x64](https://github.com/suzike/juzhen-dock/releases/latest)
+>
+> 首次启动若被 SmartScreen 拦下，选「更多信息 → 仍要运行」。源码全部公开，可自行构建复核。
+
 ---
 
 ## 一、功能板块
