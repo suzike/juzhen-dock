@@ -168,7 +168,7 @@ RETIRED.forEach(([n, why]) => {
 log.push('退役函数名: 剥注释自检 ' + (stripOk ? 'ok' : '★ 剥坏了')
   + ' · 残留 ' + (retiredRaw.length ? retiredRaw.join(' · ') : 'none'));
 
-const ids = ['hotzone','beam','scrim','panel','btnTheme','btnClose','tpop','rail','btnRail','track','pv','pvBack','pvClose','pvName','pvMeta','pvBody','foot','toast','toastMsg','ctx','onboard','btnStart','demoCursor','q'];
+const ids = ['hotzone','beam','scrim','panel','btnTheme','btnClose','tpop','rail','btnRail','track','pv','pvBack','pvClose','pvName','pvMeta','pvBody','foot','toast','toastMsg','ctx','onboard','btnStart','demoCursor','q','qHist'];
 const mi = ids.filter(id => html.indexOf('id="' + id + '"') < 0);
 log.push('missing ids: ' + (mi.length ? mi.join(', ') : 'none'));
 

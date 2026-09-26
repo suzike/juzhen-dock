@@ -21,6 +21,9 @@ const state = { open:false, pinned:false, edge:'right', delay:250, motion:'stand
                 对只用 cmd 或 WSL 的人是每天重复一次的多余操作。 */
              termProfile:'powershell',
              fsBlock:true, pinned:false, boardWatch:false, copyMode:false, onboardDone:false,
+             nightAuto:false,
+             /* 夜间自动水墨（R9）：默认关 —— 自动改外观是有代价的
+                （"我没动过它怎么自己变了"），必须让用户自己请进来。 */
              /* AI 速问的模型配置。默认指向 DeepSeek —— 选它的理由很实际：
                国内直连不需要额外的网络条件，价格低，接口是标准的
                 OpenAI 兼容格式（换别家只是换地址和模型名）。
@@ -225,7 +228,7 @@ function buildSettings(){
          步长 10 之后 250 落在格点上，两边一致。 */
       + '<input type="range" min="120" max="600" step="10" value="' + st.delay + '" data-range="delay">'),
     row('全屏应用时屏蔽热区', fsBlockHint(),
-        (DESK && fsProbeOk === false) ? naTag('不可用') : swCtl('fsBlock', st.fsBlock)),
+        (DESK && fsProbeOk === false) ? naTag('不可用') : swCtl('fsBlock', st.fsBlock, '全屏应用时屏蔽热区')),
     row('盯住面板（常驻不收起）', DESK
         ? '开启后面板固定在最上层，点别处也不会收起。与右上角图钉是同一个状态'
         /* 浏览器这一句原来写的是"桌面同时分区，其它窗口自动落到剩余区域"。
@@ -233,7 +236,7 @@ function buildSettings(){
            不自动动手"），"自动落位"这个承诺已经不成立了 —— 把它改回
            这一侧真正在做的事：按分法**演示**落位。 */
         : '开启后面板固定不自动收起，并按「分区方式」演示其它窗口的落位。与右上角图钉是同一个状态',
-        swCtl('pinned', !!state.pinned)),
+        swCtl('pinned', !!state.pinned, '面板常驻不自动收起')),
     /* 这两行原来是互斥的：桌面版写死「未接入」，浏览器版给一个改了**不会**
        影响任何东西的分段控件（pinLayout 全程只有 renderZones 读，而它只在
        浏览器里跑）。现在桌面版真接了这层，两侧合成一组 —— 分法两边都给，
@@ -247,7 +250,11 @@ function buildSettings(){
        看到配置项，而不是先滚过配色和动效。 */
     + gcard('AI 模型', 1, aiSettingsRows(), { icon:'bot', one:true })
     + gcard('配色主题', THEMES.length,
-        '<div class="theme-grid">' + themeCards + '</div>',
+        '<div class="theme-grid">' + themeCards + '</div>'
+        /* 夜间自动水墨（R9）：开关跟着主题卡走 —— "几点换什么"本来
+           就是配色偏好的一部分，单独开一张卡反而没人找得到。 */
+        + row('夜间自动换水墨', '每天 19:00–06:00 自动使用「水墨」，白天用你选的主题；关掉立即恢复',
+              swCtl('nightAuto', st.nightAuto, '夜间自动换水墨')),
         { icon:'palette', one:true, hideN:true })
     /* 透明度紧跟在配色主题后面，但**自成一张卡** —— 它跟主题是两件事
        （主题管色，这里管材质），混在一张卡里就没人找得到。 */
@@ -257,11 +264,11 @@ function buildSettings(){
           row('剪切板自动记录', DESK
               ? '常驻监听系统剪切板，你复制的内容自动按文本 / 链接 / 代码 / 路径分型入库'
               : '浏览器里读不到系统剪切板，这个开关只记录偏好；实际请用剪切板页右上角的「读取剪切板」按钮手动取',
-              swCtl('boardWatch', st.boardWatch))
+              swCtl('boardWatch', st.boardWatch, '剪切板自动记录'))
         + row('拖入文件保存实体副本', DESK
               ? '开启后把副本复制到存档目录（原件删了也不受影响）；关闭则只记原路径'
               : '关闭时仅记录路径（引用式），不复制文件本体',
-              swCtl('copyMode', st.copyMode)),
+              swCtl('copyMode', st.copyMode, '拖入文件保存实体副本')),
         { icon:'board', one:true })
     /* 知识库单独一张卡，紧跟在 AI 模型后面：它的成败取决于「嵌入模型
        能不能出向量」，而这跟聊天那家常常不是同一家，混在一张卡里
@@ -446,8 +453,12 @@ function segCtl(key, opts, cur){
   return '<div class="seg" data-seg="' + key + '">' + opts.map(o =>
     '<button data-val="' + o[0] + '"' + (o[0] === cur ? ' class="on"' : '') + '>' + o[1] + '</button>').join('') + '</div>';
 }
-function swCtl(key, on){
-  return '<div class="switch' + (on ? ' on' : '') + '" data-sw="' + key + '" role="switch" aria-checked="' + (!!on) + '"></div>';
+function swCtl(key, on, label){
+  /* label（R10）：role=switch 没有 aria-label 在屏幕阅读器里只是个
+     "未知开关" —— 行首的可读名在别处，控件自己得带上一个。 */
+  return '<div class="switch' + (on ? ' on' : '') + '" data-sw="' + key + '" role="switch"'
+    + (label ? ' aria-label="' + esc(label) + '"' : '')
+    + ' aria-checked="' + (!!on) + '" tabindex="0"></div>';
 }
 /* cls 用来换布局。默认是"左边文字、右边控件"的横排；
    传 'col' 变成上下排 —— 长输入框（API 地址、API Key）在 580px 的面板里
@@ -753,6 +764,19 @@ function openBoardPreview(b){
    ================================================================ */
 const SR_MAX = 6;   // 每个来源最多列 6 条，避免结果页长到要滚半天
 
+/* 搜索命中高亮（R5）：让人一眼看见"为什么这条算命中"。
+   只高亮原文里按大小写不敏感能直接找到的词；靠 qq() 归一化
+   （全角/注音那类）才命中的，原文对不上就不高亮 —— 不硬掰字节。
+   esc 由 hl 内部做，调用方直接喂原文。 */
+function hl(t, q){
+  const s = String(t == null ? '' : t);
+  q = String(q || '').trim();
+  if (!q) return esc(s);
+  const i = s.toLowerCase().indexOf(q.toLowerCase());
+  if (i < 0 || q.length > s.length) return esc(s);
+  return esc(s.slice(0, i)) + '<mark class="hl">' + esc(s.slice(i, i + q.length)) + '</mark>'
+    + esc(s.slice(i + q.length));
+}
 function srow(o, i){
   /* 搜索结果的每一行原来只能靠右键管理 —— 用户从搜索结果里找到一条
      "名字打错的文件夹"，想顺手改掉，得先知道这里能右键。同一条规矩：
@@ -761,9 +785,10 @@ function srow(o, i){
   const more = o.row.indexOf('data-kind') >= 0
     ? '<button class="ctx-more" data-act="ctx-open" title="编辑 / 删除">' + IC('more', 12) + '</button>'
     : '';
-  return '<div class="row" style="' + vars(o.c) + ';--i:' + Math.min(i, 9) + '"' + o.row + '>'
+  const q = state.query;
+  return '<div class="row" tabindex="0" style="' + vars(o.c) + ';--i:' + Math.min(i, 9) + '"' + o.row + '>'
     + '<div class="ic">' + IC(o.ic, 17) + '</div>'
-    + '<div class="tx"><div class="nm">' + esc(o.nm) + '</div><div class="hs">' + esc(o.hs) + '</div></div>'
+    + '<div class="tx"><div class="nm">' + hl(o.nm, q) + '</div><div class="hs">' + hl(o.hs, q) + '</div></div>'
     + (o.tg ? '<span class="tg">' + esc(o.tg) + '</span>' : '')
     + more
     + '</div>';
@@ -904,7 +929,7 @@ function searchView(raw){
   const txt = String(raw == null ? '' : raw).trim();
   const G = searchGroups(raw);
   const total = G.reduce((n, g) => n + g.total, 0);
-  const head = pageHead({ id:'search', title:'搜索「' + txt + '」', ci:0,
+  const head = pageHead({ id:'search', title:'搜索「' + txt + '」', ci:0, group:'全局搜索',
     sub: total ? '共 ' + total + ' 项 · ↑↓ 选择，Enter 执行' : '没有找到匹配的内容' }, null, true);
   if (!total)
     return '<div class="sres">' + head
@@ -914,10 +939,52 @@ function searchView(raw){
       ? '<div class="more">只列出前 ' + g.rows.length + ' 条，这一组共命中 ' + g.total + ' 条</div>' : ''),
     { icon:g.icon, grid:'wide' })).join('') + '</div>';
 }
+/* ---------------- 搜索历史（R5） ----------------
+   最近的查询词是"想到过但还没搜"的那部分记忆。记 8 条、去重、
+   存 localStorage —— 临时性的便利，不值得进存档集合（清空/恢复示例
+   都不该动它，用户也不会指望"换机迁移"带走搜索历史）。
+   浮层只在"输入框有焦点且为空"时出现：有词了，屏幕就该让给结果。
+   ⚠ LS_QHIST 的 const 声明放在 LS_PREFIX（本文件 1182 行附近）之后 ——
+   顶层 const 同样吃 TDZ，第一版写在它前面，整个脚本加载即崩
+   （R5 审查用无头渲染抓出来的：27 条守卫全是静态检查，管不到
+   声明顺序）。新加顶层常量时，声明永远放在它依赖的东西后面。 */
+function qHistGet(){
+  const v = LS.read(LS_QHIST);
+  return Array.isArray(v) ? v.filter(x => typeof x === 'string' && x).slice(0, 8) : [];
+}
+function qHistPush(q){
+  q = String(q || '').trim().slice(0, 60);
+  if (!q) return;
+  const h = [q].concat(qHistGet().filter(x => x !== q)).slice(0, 8);
+  LS.write(LS_QHIST, h);
+}
+function qHistRender(){
+  const box = $('qHist');
+  if (!box) return;
+  const h = qHistGet();
+  const show = h.length > 0 && !String(state.query || '').trim() && document.activeElement === $('q');
+  box.hidden = !show;
+  if (!show) return;
+  box.innerHTML = '<div class="qhist-h"><span>最近搜索</span>'
+    + '<button class="mini" data-act="q-hist-clear">清空</button></div>'
+    + h.map(q => '<div class="qhist-row" data-act="q-hist-use" data-q="' + esc(q) + '" title="再搜一次">'
+      + IC('search', 13) + '<span>' + esc(q) + '</span>'
+      + '<button class="ctx-more" data-act="q-hist-del" data-q="' + esc(q) + '" title="删掉这条">'
+      + IC('x', 11) + '</button></div>').join('');
+}
+function qHistHide(){
+  const box = $('qHist');
+  if (box) box.hidden = true;
+}
+function qHistCommit(){
+  /* "这一搜值得记住"的口径：提交（Enter / 点走 / 离开输入框）才记，
+     每敲一个字符就记会把历史变成输入法缓冲区。 */
+  if (state.query && state.query.trim()) qHistPush(state.query);
+}
+
 /* 退出搜索态：清空输入并作废所有已渲染页面 —— 它们在搜索态下装的都是
    结果列表，留着会被 data-rendered 挡住，切回去时显示过期内容。 */
-function exitSearch(refreshNow){
-  if (!state.query) return;
+function exitSearch(refreshNow){  if (!state.query) return;
   state.query = '';
   state.selIdx = -1;
   if ($('q')) $('q').value = '';
@@ -1127,6 +1194,8 @@ function switchPage(id){
    ---------------------------------------------------------------- */
 const LS_BOARD = 'juzhen.board.v2', LS_SET = 'juzhen.settings.v2';
 const LS_PREFIX = 'juzhen.';
+/* 搜索历史的键。放在 LS_PREFIX 之后——见上方搜索历史一节的 TDZ 教训。 */
+const LS_QHIST = LS_PREFIX + 'qhist.v1';
 
 /* 出厂默认值：在 loadCollections 跑之前抓一份深拷贝，作为字段兜底
    与「恢复示例」的来源。必须在顶层立即求值，晚于任何 load。 */
@@ -1273,9 +1342,17 @@ const COLLECTIONS = [
                      v: str1(a.v), t: str1(a.t) || str1(a.v) })) }) },
 
   { key:'shots', label:'贴图', icon:'camera', ci:2, page:'shot',
-    get:() => TOOL.shots, set:v => { TOOL.shots = v; }, seed:() => clone1(SEED.shots),
+    get:() => TOOL.shots,
+    /* 记录是档案，钉窗是桌面上的实体，两回事。凡这一栏被整体替换
+       （清空 / 恢复示例 / 全清 / 导入存档都走 set），桌面上失去记录
+       可归的钉窗要跟着收 —— 否则留下几扇找不到主的窗，只能挨个 Alt+F4。 */
+    set:v => { TOOL.shots = v; shotUnpinOrphans(); },
+    seed:() => clone1(SEED.shots),
     fix:o => ({ id:str1(o.id) || 'p' + uid(), t:str1(o.t, '未命名贴图'),
-      w:num1(o.w, 1280), h:num1(o.h, 720), op:num1(o.op, 100), at:str1(o.at, '刚刚') }) },
+      w:num1(o.w, 1280), h:num1(o.h, 720), op:num1(o.op, 100), at:str1(o.at, '刚刚'),
+      /* src 是图片副本的真实路径（桌面版选图 / 剪切板截图时写入）。
+         有它才能钉上桌面、才能画出真缩略图；没有它就是一条占位记录。 */
+      src:str1(o.src) }) },
 
   /* 片段。原来是纯只读的一张常量表 —— 用户最想改的就是这块，
      因为里面的公式模板本来就该长成他自己项目的样子。 */
@@ -1284,6 +1361,8 @@ const COLLECTIONS = [
     fix:o => { const text = str1(o.text); return { id:str1(o.id) || 's' + uid(),
       g:str1(o.g, '公式与代码'), lang:str1(o.lang, '文本'),
       name:str1(o.name, '未命名片段'), text:text,
+      /* 收藏标（R8）：!! 归一 —— 存档里出现 1/"1"/{} 都当真。 */
+      fav:!!o.fav,
       /* 变量表从正文重扫，不信存档里那份 —— 它和正文对不上时，
          复制会去问一堆正文里根本没有的名字。 */
       vars:snipVars(text) }; } },
@@ -1648,6 +1727,17 @@ function setSetting(key, val){
                 : '已关闭 · 全屏时仍会唤醒');
     }
   }
+  else if (key === 'nightAuto'){
+    /* 关掉的瞬间就回到用户选的主题 —— "关开关"这个动作本身就是一次
+       明确的主题决定，不该等到下一个整点。 */
+    if (!val && CUR.id !== state.settings.theme){
+      applyTheme(state.settings.theme);
+      invalidatePages(state.page);
+      renderPage(state.page, true);
+    }
+    toast(val ? '夜间自动水墨已开启 · 19:00–06:00 自动换上「水墨」'
+              : '夜间自动水墨已关闭 · 已回到你选的主题');
+  }
   else if (key === 'boardWatch'){
     /* 桌面版是真监听，开关要真的把轮询开起来/停掉 */
     if (DESK){ val ? startClipWatch() : stopClipWatch(); }
@@ -1690,7 +1780,10 @@ function setTheme(id){
   renderPage(state.page, true);
   renderRail();
   updateFoot();
-  toast('配色主题：' + CUR.name);
+  if (state.settings.nightAuto && effThemeId() !== id)
+    toast('配色主题：' + CUR.name + ' · 夜间自动水墨开着，稍后会自动换回「水墨」');
+  else
+    toast('配色主题：' + CUR.name);
 }
 /* ---------------- 界面透明度 ----------------
    滑杆拖动时**不重建 DOM**：那几层 alpha 是变量，改一下就是实时的；
@@ -2148,12 +2241,13 @@ function ctxFor(kind, el){
     /* 这条菜单原来写的是「取消钉住这一张」，run 里却是 delRecord ——
        标签说"取消钉住"，行为是把记录整个删掉。名字与后果对不上，
        比缺一个删除项更糟：用户以为只是取消钉住，回头找不到东西了。
-       这一页本来就是占位列表（真贴图要另开无边框置顶小窗，没做），
-       所以这里不谈"钉/取消钉"，只说这条记录本身：改名、移除。 */
-    return [
-      { icon:'note',  label:'改个名字…', run:() => editRecord('shot', s) },
-      { icon:'trash', label:'从列表里移除这张', danger:true, run:() => delRecord('shot', s, s.t) }
-    ];
+       现在钉/收在卡片上有一颗看得见的按钮（桌面版真钉窗），菜单不重复
+       摆第二份，只管这条记录本身：改名、定位图片副本、移除。 */
+    const items = [ { icon:'note', label:'改个名字…', run:() => editRecord('shot', s) } ];
+    if (s.src) items.push({ icon:'ext', label:'在文件夹中显示图片', run:() => openReal('path', s.src, '定位图片') });
+    items.push({ icon:'trash', label:'从列表里移除这张', danger:true,
+      run:() => delRecord('shot', s, s.t).then(() => shotUnpinOrphans()) });
+    return items;
   }
   if (kind === 'snip'){
     const s = TOOL.snips.find(x => x.id === el.dataset.id);
@@ -2497,12 +2591,20 @@ function askForm(title, fields, okLabel, hint){
    保证"点了就一定有东西进剪贴板"，不会因为少填一个就什么都不做。 */
 async function fillSnipVars(s){
   const vals = {};
+  /* 变量记忆（R8）：同一段会话里第二次复制同一条片段，上次填的值
+     默认带回来 —— {{月份}} 这类变量十有八九还是那个月。记忆只在
+     本次会话内有效（不落盘）：重启是新的一天，模板参数多半也该换了。
+     要换的照常改字回车即可，记忆只是默认值不是锁定值。 */
+  state.snipMem = state.snipMem || {};
+  const mem = state.snipMem[s.id] || {};
   for (let i = 0; i < s.vars.length; i++){
-    const v = await askText('填写变量 ' + s.vars[i], '',
-      '第 ' + (i + 1) + ' / ' + s.vars.length + ' 个变量');
+    const v = await askText('填写变量 ' + s.vars[i], mem[s.vars[i]] || '',
+      '第 ' + (i + 1) + ' / ' + s.vars.length + ' 个变量'
+      + (mem[s.vars[i]] ? ' · 已带上上次填的值' : ''));
     if (v === null) break;
     vals[s.vars[i]] = v;
   }
+  state.snipMem[s.id] = vals;
   let txt = s.text;
   s.vars.forEach(k => { if (k in vals) txt = txt.split('{{' + k + '}}').join(vals[k]); });
   doCopy(txt, s.name);
@@ -3029,6 +3131,104 @@ function groupCtx(el){
    两个用途：preset 预填字段，hint 在表单里写清归类规则。
    保存后还要用 where() 回报这条落进了哪一组 —— 自动归类的东西必须
    当场说清结果，否则用户会以为"加进这一组"没生效。 */
+/* ----------------------------------------------------------------
+   贴图钉屏（桌面版）
+   ----------------------------------------------------------------
+   PINNED 记着"桌面上现在钉着哪几张"（id 集合），卡片上的钉住/收起
+   按钮按它换文案与动作。所有钉图入口都归到 shotPinRecord 一条路：
+     选图（shot-add）→ 复制副本 → 建记录 → 钉
+     剪切板（shot-paste）→ 副本落盘 → 建记录 → 钉
+     占位记录补图（shot-pin 时发现没有 src）→ 选图 → 补进记录 → 钉
+   图片一律复制成实体副本（userData/files）：钉在桌面上的参考图，
+   原件被挪走、删掉之后钉窗就瞎了 —— 引用式省下的那点磁盘，
+   换不来"钉得牢"。暂存区走引用式是因为那边点开的是原文件；
+   这边钉的是一张不再变的画，副本才是对的形态。 */
+const PINNED = new Set();
+/* Windows 路径 → file:// URL（跟主进程 fileUrlOf 同一条规则，两边各留一份：
+   缩略图是渲染进程的事，钉窗取图是主进程的事，中间隔着一道桥）。
+   encodeURI 不碰 # 和 ?（保留字），要单独补编码。 */
+function shotFileUrl(p){
+  return 'file:///' + encodeURI(String(p || '').replace(/\\/g, '/'))
+    .replace(/#/g, '%23').replace(/\?/g, '%3F');
+}
+/* 拿图片真实尺寸：钉窗的开窗大小照它来，量不出来就退回默认，不阻塞钉。 */
+function shotImgSize(url){
+  return new Promise(res => {
+    const im = new Image();
+    im.onload = () => res({ w: im.naturalWidth || 0, h: im.naturalHeight || 0 });
+    im.onerror = () => res({ w: 0, h: 0 });
+    im.src = url;
+  });
+}
+function shotPinReq(s){
+  return { id:s.id, src:s.src, t:s.t, w:s.w, h:s.h, op:s.op };
+}
+/* 对账：把"已经没有记录可归"的钉窗收掉。记录被清空 / 恢复示例 /
+   导入存档 / 单条删除之后，那扇窗悬在桌面上谁也管不了 ——
+   唯一诚实的处理是替用户收掉它。导入的存档可能把同一批 id 带回来，
+   所以只收 id 已经不在记录里的那几扇。 */
+function shotUnpinOrphans(){
+  if (!DESK || !JZ.shot || !PINNED.size) return;
+  const alive = new Set(TOOL.shots.map(x => x.id));
+  PINNED.forEach(pid => {
+    if (!alive.has(pid)){
+      JZ.shot.unpin(pid);
+      PINNED.delete(pid);
+    }
+  });
+}
+function shotPinRecord(s){
+  if (!DESK || !JZ.shot) return Promise.resolve(false);
+  return JZ.shot.pin(shotPinReq(s)).then(r => {
+    if (r && r.ok){ PINNED.add(s.id); refresh(['shot']); toast('已钉在桌面 · 拖角落可缩放，悬停可调透明度'); return true; }
+    toast('钉不住：' + ((r && r.error) || '主进程没有返回原因'));
+    return false;
+  }, () => { toast('钉不住：与主进程的桥不通'); return false; });
+}
+function shotUnpinRecord(s){
+  if (!DESK || !JZ.shot) return;
+  JZ.shot.unpin(s.id).then(() => {
+    PINNED.delete(s.id);
+    refresh(['shot']);
+    toast('已收起 · 记录还在贴图页里');
+  }, () => toast('收起失败：与主进程的桥不通'));
+}
+/* 给一条还没有图的记录（或新建记录）选一张图片：
+   挑的是图片就复制副本、量尺寸、补进记录，然后接着钉。 */
+function shotPickImage(s, then){
+  JZ.pickFile().then(r => {
+    if (r.canceled) return;
+    if (!r.ok || !r.path) return toast('没读到那张图');
+    if (!/\.(png|jpe?g|gif|webp|bmp|svg|ico|avif)$/i.test(r.path))
+      return toast('这不是图片文件（认扩展名：png / jpg / gif / webp / bmp / svg）');
+    JZ.copyIn(r.path).then(c => {
+      if (!c || !c.ok) return toast('复制副本失败：' + ((c && c.error) || '未知原因'));
+      shotImgSize(shotFileUrl(c.path)).then(d => {
+        s.src = c.path;
+        if (!s.t) s.t = String(r.name || '贴图').replace(/\.[a-z0-9]+$/i, '');
+        if (d.w) s.w = d.w;
+        if (d.h) s.h = d.h;
+        if (!TOOL.shots.includes(s)) TOOL.shots.unshift(s);
+        mark('shots');
+        refresh(['shot']);
+        if (then) then();
+      });
+    }, () => toast('复制副本失败：与主进程的桥不通'));
+  }, () => toast('选择图片失败'));
+}
+/* 剪切板里有图就落盘、建记录、钉上 —— Win+Shift+S 截完图点一下就行 */
+function shotPinFromClip(){
+  JZ.shot.saveClip().then(r => {
+    if (!r || !r.ok) return toast('钉不了剪切板：' + ((r && r.error) || '未知原因'));
+    const s = { id:'p' + uid(), t:'剪切板截图 ' + nowClock(), src:r.path,
+      w:r.w || 0, h:r.h || 0, op:100, at:'刚刚' };
+    TOOL.shots.unshift(s);
+    mark('shots');
+    refresh(['shot']);
+    shotPinRecord(s);
+  }, () => toast('读剪切板失败：与主进程的桥不通'));
+}
+
 async function editRecord(kind, o, isNew, ctx){
   const F = FORMS[kind];
   if (!F) return;
@@ -3249,6 +3449,39 @@ function handleAct(el){
     editRecord('snip', null, true, groupCtx(el));
   } else if (act === 'todo-new'){
     editRecord('todo', null, true);
+  } else if (act === 'todo-quick'){
+    todoQuickAdd();
+  } else if (act === 'conv-copy'){
+    /* 换算结果一键复制（R7）：带单位一起走 —— 贴进表格/邮件不用手动补。 */
+    doCopy(String(el.dataset.v || '') + ' ' + String(el.dataset.u || ''), '换算结果');
+  } else if (act === 'conv-use'){
+    /* 行尾 ⇄：把那一行的单位和数值换回输入框（倒着算）。
+       dataset 里存的是全精度原始值 —— 显示值被 fmtNum 截过位，
+       拿它倒算会把误差攒进下一次结果。 */
+    const u = String(el.dataset.u || '');
+    const g = convGroup(state.convGroup);
+    if (!u || !g.u[u]) return;
+    state.convFrom = u;
+    const v = parseFloat(el.dataset.v);
+    const inp = document.querySelector('[data-conv="val"]');
+    if (inp && isFinite(v)){ inp.value = v; state.convVal = v; }
+    renderPage('calc', true);
+  } else if (act === 'snip-fav'){
+    /* 片段收藏（R8）：★ 是记录上的真实字段（fav），落盘跟着存档走；
+       筛选视图（state.snipFav）才是临时的。两件事分开，才不会出现
+       "取消筛选后收藏全丢了"这种怪事。 */
+    const s = TOOL.snips.find(x => x.id === id);
+    if (!s) return;
+    s.fav = !s.fav;
+    mark('snips');
+    refresh(['snip']);
+    toast(s.fav ? '已收藏 · ★ 栏里能单独看到它' : '已取消收藏');
+  } else if (act === 'snip-flt'){
+    state.snipFav = el.dataset.v === '1';
+    refresh(['snip']);
+  } else if (act === 'note-flt'){
+    state.noteTag = el.dataset.t || '';
+    refresh(['note']);
   } else if (act === 'ai-test'){
     aiTest();
   } else if (act === 'ai-keypage'){
@@ -3300,11 +3533,53 @@ function handleAct(el){
     mark('notes');
     refresh(['note']); toast('已删除这条速记');
   } else if (act === 'shot-add'){
-    /* 截图本身还没接（要 screen capture + 区域选择，是独立一块活），
-       所以这里是"手工登记一张贴图"，不假装截了屏。 */
-    editRecord('shot', null, true);
+    /* 桌面版：选一张图片 → 复制副本 → 建记录 → 接着钉上。
+       浏览器里没有文件对话框，退回手工登记的表单（跟暂存区同一条退路）。 */
+    if (!DESK) return editRecord('shot', null, true);
+    shotPickImage(FORMS.shot.blank());
+  } else if (act === 'shot-paste'){
+    /* 剪切板截图 → 落盘副本 → 钉上。Win+Shift+S 截完图点这一下就完事，
+       不用自己做区域选择 —— 截图这件事系统已经做得很好了。 */
+    if (!DESK) return toast('浏览器里读不到图片剪切板，这个入口只在桌面版有用');
+    shotPinFromClip();
+  } else if (act === 'shot-pin'){
+    /* 卡片上的钉住/收起是一颗按钮：按 PINNED 换动作，不摆两颗让人猜。 */
+    const s = TOOL.shots.find(x => x.id === id);
+    if (!s) return;
+    if (PINNED.has(s.id)) return shotUnpinRecord(s);
+    if (!s.src){
+      /* 占位记录（出厂演示，或浏览器时代手工登记的）没有图：先补图再钉 */
+      if (!DESK) return toast('这条是占位记录，还没有图 —— 桌面版里点它会让你选一张钉上');
+      return shotPickImage(s, () => shotPinRecord(s));
+    }
+    shotPinRecord(s);
   } else if (act === 'shot-clear'){
-    TOOL.shots = []; mark('shots'); refresh(['shot']); toast('已清空贴图列表（这里只是占位记录，没有真的钉在桌面上）');
+    /* 桌面版先把钉着的窗都收掉再清记录 —— 不然记录没了、窗还悬在桌面上，
+       连"从面板再点一次收起"这条路都没了。 */
+    if (DESK && JZ.shot){
+      PINNED.forEach(pid => JZ.shot.unpin(pid));
+      PINNED.clear();
+    }
+    TOOL.shots = []; mark('shots'); refresh(['shot']);
+    toast(DESK ? '已清空贴图列表，钉在桌面上的也一并收起'
+               : '已清空贴图列表（浏览器里没有钉屏，这里只是记录）');
+  } else if (act === 'q-hist-use'){
+    /* 搜索历史：点词条 = 替用户把词打回去。聚焦保持在你手里，
+       结果立刻刷出来 —— 历史的意义就是少打这一遍。 */
+    const q = String(el.dataset.q || '');
+    state.query = q; state.selIdx = -1;
+    if ($('q')){ $('q').value = q; $('q').focus(); }
+    qHistHide();
+    refresh();
+  } else if (act === 'q-hist-del'){
+    const q = String(el.dataset.q || '');
+    LS.write(LS_QHIST, qHistGet().filter(x => x !== q));
+    qHistRender();
+    toast('已从历史里删掉「' + q + '」');
+  } else if (act === 'q-hist-clear'){
+    LS.drop(LS_QHIST);
+    qHistRender();
+    toast('搜索历史已清空');
   } else if (act === 'ask-send'){
     sendAsk();
   } else if (act === 'ask-new'){
@@ -4401,19 +4676,32 @@ $('panel').addEventListener('contextmenu', function(e){
 /* 在菜单自身上再右键一次 —— 把它收掉。放它显示浏览器默认菜单也没有意义
    （Electron 里根本没有默认菜单）。 */
 $('ctx').addEventListener('contextmenu', function(e){ e.preventDefault(); closeCtx(); });
-$('q').addEventListener('input', function(e){ state.query = e.target.value; state.selIdx = -1; refresh(); });
+$('q').addEventListener('input', function(e){ state.query = e.target.value; state.selIdx = -1; refresh(); qHistRender(); });
+/* 搜索历史浮层（R5）：聚焦且为空时出现；离开输入框就收 ——
+   但鼠标正按在浮层上时不收（180ms 是给 mousedown→click 留的余量）。 */
+$('q').addEventListener('focus', () => qHistRender());
+$('q').addEventListener('blur', () => setTimeout(() => {
+  const box = $('qHist');
+  if (box && box.matches(':hover')) return;
+  qHistCommit();
+  qHistHide();
+}, 180));
 /* 搜索框里的键盘：↑↓ 选结果、Enter 执行、Esc 清空退回当前板块。
    Esc 必须 stopPropagation —— 否则会继续冒泡到 document 上的监听，
    把整个面板关掉（在搜索框里按 Esc 的本意是"退出搜索"）。 */
 $('q').addEventListener('keydown', function(e){
-  if (!state.query || !state.query.trim()) return;
+  if (!state.query || !state.query.trim()){
+    if (e.key === 'Escape'){ qHistHide(); }
+    return;
+  }
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp'){ e.preventDefault(); moveSel(e.key === 'ArrowDown' ? 1 : -1); }
   else if (e.key === 'Enter'){
     e.preventDefault();
+    qHistCommit();
     const rows = srRows();
     const el = rows[state.selIdx >= 0 ? state.selIdx : 0];
     if (el) activateSearchRow(el);
-  } else if (e.key === 'Escape'){ e.stopPropagation(); exitSearch(); }
+  } else if (e.key === 'Escape'){ e.stopPropagation(); qHistHide(); exitSearch(); }
 });
 $('panel').addEventListener('input', function(e){
   const ci = e.target.closest('#clipInput');
@@ -4491,7 +4779,12 @@ $('panel').addEventListener('input', function(e){
   const so = e.target.closest('[data-shot-op]');
   if (so){
     const s = TOOL.shots.find(x => x.id === so.dataset.shotOp);
-    if (s){ s.op = +so.value; const ov = so.parentNode.querySelector('.shot-ov'); if (ov) ov.textContent = s.op + '%'; }
+    if (s){
+      s.op = +so.value; const ov = so.parentNode.querySelector('.shot-ov'); if (ov) ov.textContent = s.op + '%';
+      /* 这张正钉在桌面上：透明度当场跟过去。落档照旧走 change 事件，
+         这里只管让钉窗"看着就变"。 */
+      if (DESK && PINNED.has(s.id) && JZ.shot) JZ.shot.update(s.id, { op: s.op });
+    }
   }
 });
 /* select 用的是 change 而不是 input */
@@ -4526,8 +4819,35 @@ $('panel').addEventListener('change', function(e){
   }
   if (e.target.closest('[data-shot-op]')) mark('shots');
 });
+/* 贴图缩略图的兜底：副本被清掉 / 原件所在盘没挂上时 file:// 会加载失败。
+   error 事件不冒泡，必须挂在捕获阶段才接得到。换成"图片文件已不在"的
+   占位并标灰 —— 不摆一张永远裂开的图标假装没事。 */
+document.addEventListener('error', function(e){
+  const im = e.target && e.target.closest ? e.target.closest('[data-shot-img]') : null;
+  if (!im) return;
+  const box = im.parentNode;
+  if (!box || !box.classList.contains('shot-img')) return;
+  box.classList.add('shot-gone');
+  box.innerHTML = '<svg viewBox="0 0 160 92" aria-hidden="true">'
+    + '<rect width="160" height="92" fill="var(--cb-soft)"/>'
+    + '<text x="80" y="50" text-anchor="middle" font-size="11" fill="var(--ink-4)">图片文件已不在</text></svg>';
+}, true);
 $('panel').addEventListener('keydown', function(e){
+  /* 键盘激活（R10）：可点但不是 <button> 的卡片（待办行 / 结果行 /
+     片段卡 / 速记卡 / 开关）Tab 聚焦后，Enter / 空格 = 点它。
+     走 click() 是刻意的：合成点击同样冒泡进上面那条 click 委托，
+     鼠标和键盘到同一个处理函数，永远不会有第二套规则。 */
+  if ((e.key === 'Enter' || e.key === ' ') && e.target === e.target.closest('[data-act],[data-kind],[data-sw],[data-theme]')){
+    const t = e.target;
+    if (t.tagName !== 'BUTTON' && t.tagName !== 'INPUT' && t.tagName !== 'TEXTAREA' && t.tagName !== 'A'){
+      e.preventDefault();
+      t.click();
+      return;
+    }
+  }
   if (e.key !== 'Enter') return;
+  const tq = e.target.closest('#todoQuick');
+  if (tq){ e.preventDefault(); return todoQuickAdd(); }
   const ci = e.target.closest('#clipInput');
   if (ci){
     const it = addClip(ci.value);
@@ -4721,6 +5041,39 @@ function bindDesktop(){
   /* 存档路径写进设置页（异步取一次，设置页重建时直接读这个变量） */
   JZ.store.path().then(p => { storePathTxt = p || ''; }, () => {});
 
+  /* ---------------- 贴图钉窗接线 ----------------
+     启动先问一次"桌面上现在钉着哪几张"（上次的钉窗不会跨启动活下来，
+     所以这一问平时答案是空的；万一半路重开面板，卡片也别标错）。
+     之后两条推各管一件事：钉窗被自己关掉 → 卡片退回"钉住"；
+     透明度在钉窗那头被改 → 记录落档 + 卡片滑杆跟上。
+     （jz:shotdata 只发给钉窗自己，面板这条 onData 永远等不到 —— 不订。） */
+  if (JZ.shot){
+    JZ.shot.state().then(r => {
+      const pins = (r && r.pins) || [];
+      pins.forEach(pid => PINNED.add(pid));
+      if (pins.length && state.page === 'shot') renderPage('shot', true);
+    }, () => {});
+    JZ.shot.onClosed(d => {
+      const pid = d && d.id;
+      if (!pid) return;
+      PINNED.delete(pid);
+      if (state.page === 'shot') renderPage('shot', true);
+    });
+    JZ.shot.onOp(d => {
+      const s = d && TOOL.shots.find(x => x.id === d.id);
+      if (!s || s.op === d.op) return;
+      s.op = d.op;
+      mark('shots');
+      /* 只动已有的滑杆，不整页重画 —— 拖到一半被重建会打断手感 */
+      const inp = document.querySelector('[data-shot-op="' + d.id + '"]');
+      if (inp){
+        inp.value = d.op;
+        const ov = inp.parentNode.querySelector('.shot-ov');
+        if (ov) ov.textContent = d.op + '%';
+      }
+    });
+  }
+
   /* ---------------- 终端接线 ----------------
      两件事必须在**建页面之前**有个说法，否则终端页第一帧会渲染成
      "终端起不来"（其实只是还没问完）：
@@ -4805,11 +5158,25 @@ function bindDesktop(){
     /* 存档先于 deepLink：深链只覆盖它明确指定的那几项，其余照旧取用户上次的状态 */
     loadCollections();
     deepLink();
-    applyTheme(state.settings.theme);
+    applyTheme(effThemeId());
     /* 界面透明度必须**在** applyTheme 之后应用：applyTheme 只按默认的
        GLASS=60 算那几个 alpha，存档里的值要再盖一次。
        顺序反了的话，用户每次启动看到的都是 60%，滑杆却显示他上次存的值。 */
     applyGlass(state.settings.glass);
+    /* 夜间自动水墨（R9）：每 30 秒看一眼"现在该用哪套"。只有口径结果
+       变了（跨进/跨出夜间时段）才真的动主题 —— 平时这里什么都不会发生，
+       页面不会无故闪一下。手动选主题在夜间会被接管，setTheme 的吐司
+       会提前把这件事说清楚。 */
+    setInterval(() => {
+      if (!state.settings.nightAuto) return;
+      const id = effThemeId();
+      if (CUR && id !== CUR.id){
+        applyTheme(id);
+        invalidatePages(state.page);
+        renderPage(state.page, true);
+        toast(id === 'inkwash' ? '夜间模式 · 已自动换上「水墨」' : '天亮了 · 换回你选的主题');
+      }
+    }, 30 * 1000);
     applySettings();
     state.pinned = !!state.settings.pinned;   /* 恢复上次的盯住状态 */
     injectStaticIcons();

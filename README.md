@@ -1,6 +1,6 @@
 # 聚珍 · Juzhen Dock
 
-![version](https://img.shields.io/badge/version-0.5.1-blue)
+![version](https://img.shields.io/badge/version-0.7.0-blue)
 ![platform](https://img.shields.io/badge/platform-Windows-lightgrey)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -13,7 +13,7 @@
 <p align="center"><sub>今日概览 —— 左边是桌面，右边是面板。待办、最近使用、场景，一屏看全</sub></p>
 
 > **直接下载桌面版**（免安装、免 Node 环境）：
-> [聚珍 v0.5.1 便携版 · Windows x64](https://github.com/suzike/juzhen-dock/releases/latest)
+> [聚珍 v0.7.0 便携版 · Windows x64](https://github.com/suzike/juzhen-dock/releases/latest)
 >
 > 首次启动若被 SmartScreen 拦下，选「更多信息 → 仍要运行」。源码全部公开，可自行构建复核。
 
@@ -36,7 +36,7 @@
 | | 片段与命令 | 可复制，带变量占位 |
 | | 工程换算 | 单位换算 · 湿空气 · PMV |
 | | 速记 | 想到就记，不打断思路 |
-| | 贴图 | 参考图钉在窗口最上层 |
+| | 贴图 | 截图或图片钉在桌面最上层 · 独立小窗，可拖、可缩、可调透明度 |
 | | AI 速问 | 唤出即问，可一键存入速记 |
 | **系统** | 设置 | 配色、触发方式与显示方式 |
 
@@ -71,6 +71,27 @@
 
 `Ctrl K` 唤出，一次跨全部 14 个板块检索 —— 板块本身、条目、片段、网址都在结果里。
 新增板块只需在 `searchGroups()` 补一条来源，不用改动搜索界面。
+
+### 贴图钉屏：截一张，钉一屏
+
+`Win+Shift+S` 截图进剪切板，到贴图页点「钉住剪切板里的图」——图以独立的无边框
+置顶小窗落在桌面右下，按住图面拖动、拖边角缩放、悬停出控制条调透明度；
+也可以「选一张图片钉上」。收起面板、切去干别的，钉着的参考图都不走。
+
+三条设计决定值得写下来：
+
+- **图片一律先复制副本**（`userData/files`）：钉在桌面上的参考图，原件被挪走、
+  删掉之后钉窗就瞎了。引用式省下的那点磁盘，换不来"钉得牢"。缩略图加载失败时
+  当场换成「图片文件已不在」的占位，不摆一张永远裂开的图。
+- **透明度只有一份事实来源**（面板记录里的 `op`）：面板滑杆和钉窗悬停滑杆
+  改的是同一个数，另一头实时跟上的同时落档 —— 两根滑杆各改各的，
+  下次钉回来透明度又变回去，用户只会觉得"这东西记不住"。
+- **窗口几何不进存档**（记在 `userData/shots-pin.json`）：窗口摆位归窗口管，
+  记录内容归存档管。退出聚珍时钉窗跟着关（窗口活不过进程，这是实话），
+  记录、图片副本、上次摆位都在，下次一键钉回原位。
+
+清空列表、删单条、恢复示例、导入存档都会做一次对账：失去记录可归的钉窗
+**跟着收掉**，绝不留下几扇找不到主的窗让人挨个 Alt+F4。
 
 ---
 
@@ -204,7 +225,7 @@ Electron 里 `preload.js` 注入 `window.JZ` → 启用真实终端、窗口分�
 
 | 文件 | 职责 |
 |---|---|
-| `main.js` | 主进程：窗口策略、热区轮询、自检（`JZ_DIAG=1`） |
+| `main.js` | 主进程：窗口策略、热区轮询、贴图钉窗、自检（`JZ_DIAG=1`） |
 | `preload.js` | 唯一的渲染进程 ↔ 主进程桥（逐条白名单，不暴露 `ipcRenderer`） |
 | `term.js` | ConPTY 终端会话管理 |
 | `ai.js` | AI 服务商适配（8 家对话 + 5 家嵌入） |
@@ -299,6 +320,17 @@ JZ_DIAG=1 electron desktop --disable-gpu --disable-software-rasterizer --no-sand
 > `--no-sandbox` 是承重参数：漏掉会导致 GPU 进程反复崩溃、以 exit 3 退出，
 > 且**自检报告只写下第一行就没了**，症状与"抢不到单实例锁"完全一样。
 
+### 十轮设计演进（2026-09-27）
+
+对着 GitHub 高星组件库（shadcn/ui / MUI / Ant Design / Open Props / Arco / Semi / TDesign）
+做了一轮系统性的设计借鉴，落地为 10 轮优化与增强，每轮由独立审查 agent 按可执行判据验收：
+设计令牌体系（260 处收编）→ 数字排版 → 动效系统（补齐 reduced-motion 覆盖缺口）→
+状态设计（空态/骨架/禁用/徽标）→ 搜索体验（高亮/历史/修眉标 bug）→ 今日进度环 →
+换算器 14 组单位与全精度复制回填 → 片段收藏与速记筛选 → 主题 9→11 套 + 夜间自动水墨 →
+键盘与读屏可达。过程中抓出并修复一个加载即崩的 TDZ 缺陷（静态守卫抓不到，
+由此新增运行时冒烟探针 `_probe34.js`）。台账见 [docs/design-rounds.md](docs/design-rounds.md)，
+调研笔记见 [docs/design-research.md](docs/design-research.md)。
+
 ---
 
 ## 八、已知边界
@@ -307,10 +339,11 @@ JZ_DIAG=1 electron desktop --disable-gpu --disable-software-rasterizer --no-sand
 
 | 项目 | 现状 |
 |---|---|
-| 贴图钉屏 | 尚未实现 |
 | 文件内容解析 | 能打开、能定位，**不按扩展名解析内容** |
 | 「最近使用」条目 | 只能移除，不能改名 |
 | 窗口分区摆位 | 分区矩形计算与脚本执行已测；`SetWindowPos` 实际搬动窗口需人工点一次确认 |
+| 贴图钉屏 · 截图方式 | 钉的是"剪切板里已有的图"（Win+Shift+S 之后都在）或选中的图片文件；**面板内自己划框截图**没有做，也没有做的必要 —— 系统截图工具已经很好用 |
+| 贴图钉屏 · 跨启动 | 退出聚珍钉窗跟着关；记录、副本、摆位都在，重开面板一键钉回，**不自动恢复** |
 
 另外两条**测量工具本身的局限**（不是产品缺陷，写在这里免得下一个人误判）：
 
@@ -354,6 +387,7 @@ JZ_DIAG=1 electron desktop --disable-gpu --disable-software-rasterizer --no-sand
 │       ├── kb.js              #   知识库 RAG
 │       ├── zones.js           #   窗口分区
 │       ├── app/index.html     # ★ 构建产物 · 桌面版前端
+│       ├── app/pin.html       #   贴图钉窗页面（纯静态，与面板共用 preload）
 │       └── app/vendor/        #   xterm.js
 └── _ref/
     └── agentic-island/        # 设计参考（git submodule）

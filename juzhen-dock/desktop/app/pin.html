@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>贴图</title>
+<!-- 贴图钉窗的本体。这是一个独立的无边框置顶小窗，跟面板共用 preload.js
+     （拿到同一个 window.JZ 桥），但页面本身是纯静态的 —— 它不在
+     _build.js 的拼装清单里，桌面版专有的东西放 app/ 目录即可打包。 -->
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden;
+    font: 12px/1.4 "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: #161311; }
+  /* 整张图就是拖动区：参考图的用法是"按住挪到一边"，不是点它 */
+  #img { position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: contain; user-select: none; -webkit-app-region: drag; }
+  /* 控制条悬停才出现；必须是 no-drag，否则滑杆拖不动画 */
+  #bar { position: absolute; left: 0; right: 0; bottom: 0;
+    display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+    background: rgba(18, 15, 13, .84); color: #efe9e2;
+    opacity: 0; transition: opacity .18s ease; -webkit-app-region: no-drag; }
+  body:hover #bar, body:focus-within #bar { opacity: 1; }
+  #t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; opacity: .78; }
+  #op { width: 92px; accent-color: #c9a86a; }
+  #x { border: 0; background: none; color: #efe9e2; font-size: 14px;
+    line-height: 1; cursor: pointer; padding: 3px 7px; border-radius: 6px; }
+  #x:hover { color: #ff8b7a; background: rgba(255, 255, 255, .08); }
+</style>
+</head>
+<body>
+<img id="img" alt="" draggable="false">
+<div id="bar">
+  <span id="t"></span>
+  <input id="op" type="range" min="30" max="100" value="100" title="透明度">
+  <button id="x" title="收起这张贴图（记录还留在面板的贴图页）">✕</button>
+</div>
+<script>
+/* 数据由主进程在载入完成后推一次（jz:shotdata）。这里不自己发 invoke
+   去领 —— 一连开好几个钉窗时，"谁载入完谁先问"主进程还得靠 sender
+   反查；推是天然一对一的。 */
+var REC = null;
+if (window.JZ && window.JZ.shot){
+  var img = document.getElementById('img');
+  var tEl = document.getElementById('t');
+  var opEl = document.getElementById('op');
+
+  /* 透明度落档要节流：滑杆一路拖过去是几十个 input 事件，
+     每个都 invoke 一遍没有意义。画面上的透明度即时变，落档慢半拍。 */
+  var opT = 0;
+  opEl.addEventListener('input', function (){
+    if (!REC) return;
+    img.style.opacity = opEl.value / 100;
+    clearTimeout(opT);
+    var v = +opEl.value;
+    opT = setTimeout(function (){ JZ.shot.update(REC.id, { op: v }); }, 260);
+  });
+
+  document.getElementById('x').addEventListener('click', function (){
+    if (REC) JZ.shot.unpin(REC.id);   /* 主进程收窗；记录还留在面板里 */
+  });
+
+  /* 透明度在另一头（面板卡片滑杆）被改了：跟着变，别两处各说各话 */
+  JZ.shot.onOp(function (d){
+    if (!REC || !d || d.id !== REC.id) return;
+    if (+opEl.value === d.op) return;
+    opEl.value = d.op;
+    img.style.opacity = d.op / 100;
+  });
+
+  JZ.shot.onData(function (rec){
+    REC = rec;
+    /* 窗口标题带上记录名：页面一载入，<title> 会盖掉 BrowserWindow 的
+       title 选项 —— 不在这里补，Alt+Tab 里每扇钉窗都叫"贴图"。 */
+    document.title = '贴图 · ' + (rec.t || '未命名');
+    tEl.textContent = rec.t || '贴图';
+    tEl.title = rec.t || '';
+    opEl.value = rec.op;
+    img.style.opacity = rec.op / 100;
+    img.src = rec.url;
+  });
+} else {
+  /* preload 没注入进来（不该发生）：把话说在明面上，别挂一扇白窗 */
+  document.body.innerHTML = '<p style="color:#c96a5a;padding:14px">'
+    + '贴图窗没拿到桌面桥（preload 缺失），钉屏不可用。</p>';
+}
+</script>
+</body>
+</html>

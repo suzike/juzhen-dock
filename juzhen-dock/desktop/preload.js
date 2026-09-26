@@ -94,6 +94,23 @@ contextBridge.exposeInMainWorld('JZ', {
     onData:  (fn)          => ipcRenderer.on('jz:pty', (_e, d) => fn(d)),
     onExit:  (fn)          => ipcRenderer.on('jz:ptyexit', (_e, d) => fn(d))
   },
+  /* 贴图钉窗。pin/unpin/update/state/saveClip 都是 invoke：
+     每一步都有"成没成、为什么没成"要回到界面上 —— 钉不上就是钉不上，
+     必须带着原因（图片没了 / 剪切板里没图），不能弹一句"已钉住"完事。
+     三条 on* 是主进程的推：钉窗自己被关掉（jz:shotclosed）、
+     透明度在另一头被改（jz:shotop）、钉窗首次载入领数据（jz:shotdata，
+     只有钉窗会收到，面板虽然也订阅但永远等不到它）。 */
+  shot: {
+    pin:      (rec)       => ipcRenderer.invoke('shot:pin', rec),
+    unpin:    (id)        => ipcRenderer.invoke('shot:unpin', { id: id }),
+    update:   (id, patch) => ipcRenderer.invoke('shot:update', { id: id, patch: patch }),
+    state:    ()          => ipcRenderer.invoke('shot:state'),
+    saveClip: ()          => ipcRenderer.invoke('shot:saveClip'),
+    onData:   (fn) => ipcRenderer.on('jz:shotdata',   (_e, d) => fn(d)),
+    onOp:     (fn) => ipcRenderer.on('jz:shotop',     (_e, d) => fn(d)),
+    onClosed: (fn) => ipcRenderer.on('jz:shotclosed', (_e, d) => fn(d))
+  },
+
   /* 让窗口真的拿到焦点。热区唤出用的是 showInactive()（刻意不抢焦点），
      那种状态下终端敲字一个字符都进不去 —— 进终端板块时显式要一次。 */
   focusPanel: () => ipcRenderer.send('panel:focus'),

@@ -79,6 +79,64 @@ const S = {
 const PAGE_ERRORS = [];
 
 /* ============================================================
+   贴图钉窗
+   ------------------------------------------------------------
+   「贴图钉屏」的本体：每条贴图记录对应一个独立的无边框置顶小窗。
+   三个决定值得写下来：
+   · 钉窗是独立 BrowserWindow，不是面板里的一层 —— 收起/关闭面板，
+     钉着的参考图必须还留在桌面上，这是这个功能存在的理由；
+   · 窗口几何（x/y/w/h）记在 userData/shots-pin.json，**不**进面板存档：
+     窗口摆位归窗口管，记录内容（名称/透明度/图片来源）归存档管。
+     混在一起就会出现"存档里躺着一扇打不开的窗"；
+   · 透明度只有一份事实来源 —— 面板记录里的 op。钉窗上的滑杆改动
+     推回面板落档，两边谁也不私藏：不然两根滑杆各改各的，
+     下次钉回来透明度又变回去，用户只会觉得"这东西记不住"。
+   ============================================================ */
+const PINS = new Map();   // id -> { win, rec }
+
+/* Windows 路径 → file:// URL。中文与空格交给 encodeURI；
+   encodeURI 不会碰 # 和 ?（它们是保留字），所以要单独补编码。 */
+function fileUrlOf(p){
+  const u = String(p || '').replace(/\\/g, '/');
+  return 'file:///' + encodeURI(u).replace(/#/g, '%23').replace(/\?/g, '%3F');
+}
+function shotGeomPath(){
+  return path.join(app.getPath('userData'), 'shots-pin.json');
+}
+function shotGeomRead(){
+  try {
+    const d = JSON.parse(fs.readFileSync(shotGeomPath(), 'utf8'));
+    return (d && typeof d === 'object' && !Array.isArray(d)) ? d : {};
+  } catch (e){ return {}; }
+}
+function shotGeomWriteAll(o){
+  try { fs.writeFileSync(shotGeomPath(), JSON.stringify(o), 'utf8'); } catch (e){}
+}
+/* 存档是外部输入，不能信（跟渲染侧的 fix 同一条纪律）：
+   字段缺省给默认，数值夹进合法区间，图片不在了就带着原因拒绝。 */
+function shotSanitize(rec){
+  const id = String((rec && rec.id) || '');
+  if (!id) return { error: '这条记录缺 id，钉不了' };
+  const src = String((rec && rec.src) || '');
+  if (!src) return { error: '这条记录还没有图片，先选一张或从剪切板钉' };
+  if (!fs.existsSync(src)) return { error: '图片文件已经不在了：' + src };
+  const num = (v, d, lo, hi) => {
+    v = Number(v);
+    if (!isFinite(v)) return d;
+    return Math.min(hi, Math.max(lo, Math.round(v)));
+  };
+  return { rec: {
+    id: id,
+    src: src,
+    url: fileUrlOf(src),
+    t: String((rec && rec.t) || '贴图').slice(0, 60),
+    w: num(rec && rec.w, 560, 120, 4096),
+    h: num(rec && rec.h, 360, 90, 4096),
+    op: num(rec && rec.op, 100, 30, 100)
+  } };
+}
+
+/* ============================================================
    存档文件
    ============================================================ */
 function storePath(){
@@ -832,6 +890,136 @@ function bind(){
     } catch (e){ return { ok: false, error: String(e.message || e) }; }
   });
 
+  /* ---- 贴图钉窗 ---- */
+  function shotPinCreate(rec){
+    const old = PINS.get(rec.id);
+    /* 已经钉着再点"钉住"：把现有的窗带到前面来，而不是再开一个一样的 */
+    if (old && !old.win.isDestroyed()){
+      if (old.win.isMinimized()) old.win.restore();
+      old.win.show();
+      old.win.focus();
+      return { ok: true, existed: true };
+    }
+    const disp = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+    const wa = disp.workArea;
+    /* 上次的摆位还在就原样用（shots-pin.json）；没有就放在鼠标所在屏的
+       偏右下区域 —— 面板固定贴屏幕右缘，钉窗再压上去就谁也看不见谁。 */
+    const all = shotGeomRead();
+    const geom = all[rec.id] || {};
+    const w = Math.min(geom.w || rec.w, wa.width - 40);
+    const h = Math.min(geom.h || rec.h, wa.height - 40);
+    const x = (typeof geom.x === 'number') ? geom.x
+      : Math.max(wa.x, wa.x + Math.round(wa.width * 0.55) - Math.round(w / 2));
+    const y = (typeof geom.y === 'number') ? geom.y : wa.y + Math.round((wa.height - h) / 2);
+
+    const pw = new BrowserWindow({
+      x: x, y: y, width: w, height: h,
+      show: false,
+      frame: false,
+      title: '贴图 · ' + rec.t,
+      icon: path.join(__dirname, 'icon.png'),
+      backgroundColor: '#161311',
+      minWidth: 120, minHeight: 90,
+      maximizable: false,
+      fullscreenable: false,
+      skipTaskbar: true,
+      alwaysOnTop: true,
+      hasShadow: true,
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+        spellcheck: false
+      }
+    });
+    /* 'floating' 档：比普通窗口高，但不跟全屏视频抢 —— 参考图让位是本分 */
+    pw.setAlwaysOnTop(true, 'floating');
+    pw.loadFile(path.join(__dirname, 'app', 'pin.html'));
+    PINS.set(rec.id, { win: pw, rec: rec });
+
+    /* 记录在载入完成后推一次（pin.html 用 JZ.shot.onData 接）。
+       不让 pin 页自己来问：一连开好几个钉窗时，谁先载入完谁先问，
+       主进程还得靠 sender 反查；推是天然一对一的。 */
+    pw.webContents.on('did-finish-load', () => {
+      if (!pw.isDestroyed()) pw.webContents.send('jz:shotdata', rec);
+    });
+
+    /* 拖动/缩放落库要节流：move 事件一来就是一串，每次都写盘没意义。
+       写的是 shots-pin.json（窗口的事），不是面板存档（记录的事）。 */
+    let geomT = 0;
+    const saveGeom = () => {
+      clearTimeout(geomT);
+      geomT = setTimeout(() => {
+        if (pw.isDestroyed()) return;
+        const b = pw.getBounds(), g = shotGeomRead();
+        g[rec.id] = { x: b.x, y: b.y, w: b.width, h: b.height };
+        shotGeomWriteAll(g);
+      }, 420);
+    };
+    pw.on('move', saveGeom);
+    pw.on('resize', saveGeom);
+
+    pw.on('closed', () => {
+      PINS.delete(rec.id);
+      /* 用户在钉窗上点了 ✕（或 Alt+F4）—— 面板那边的"已钉"状态必须跟着掉，
+         不然卡片还标着"已钉"，点"收起"却什么都没发生。 */
+      if (win && !win.isDestroyed()) win.webContents.send('jz:shotclosed', { id: rec.id });
+    });
+
+    pw.showInactive();   /* 钉参考图不该抢走正在打字的那个窗口的焦点 */
+    return { ok: true };
+  }
+  function shotUnpinId(id){
+    const e = PINS.get(String(id || ''));
+    if (!e) return { ok: true, gone: true };   /* 本来就没钉：收起一个不存在的窗不算错 */
+    /* destroy() 不触发 closed 事件（那样会再推一次 jz:shotclosed），
+       所以这里自己清干净 map。 */
+    if (!e.win.isDestroyed()) e.win.destroy();
+    PINS.delete(String(id));
+    return { ok: true };
+  }
+
+  ipcMain.handle('shot:pin', (_e, req) => {
+    const s = shotSanitize(req);
+    if (s.error) return { ok: false, error: s.error };
+    return shotPinCreate(s.rec);
+  });
+  ipcMain.handle('shot:unpin', (_e, req) => shotUnpinId(req && req.id));
+  ipcMain.handle('shot:update', (_e, req) => {
+    const id = String((req && req.id) || ''), patch = (req && req.patch) || {};
+    const e = PINS.get(id);
+    if (!e) return { ok: false, error: '这张图当前没有钉在桌面上' };
+    if (typeof patch.op === 'number' && isFinite(patch.op)){
+      const op = Math.min(100, Math.max(30, Math.round(patch.op)));
+      e.rec.op = op;
+      /* 回声只发给"另一头"：面板改的推给钉窗，钉窗改的推回面板落档。
+         原样发回发起方除了打乒乓没有任何用处。 */
+      const from = _e.sender;
+      if (win && !win.isDestroyed() && from !== win.webContents)
+        win.webContents.send('jz:shotop', { id: id, op: op });
+      if (!e.win.isDestroyed() && from !== e.win.webContents)
+        e.win.webContents.send('jz:shotop', { id: id, op: op });
+    }
+    return { ok: true };
+  });
+  /* 面板启动时问一次"现在桌面上钉着哪几张"，把卡片的"已钉"标对 */
+  ipcMain.handle('shot:state', () => ({ ok: true, pins: [...PINS.keys()] }));
+  /* 剪切板里的图落盘成 PNG 副本。Win+Shift+S 截完图就在剪切板里，
+     这一枪是把"截图 → 钉住"接通的最短路径 —— 不用自己做区域选择。 */
+  ipcMain.handle('shot:saveClip', () => {
+    try {
+      const img = clipboard.readImage();
+      if (img.isEmpty()) return { ok: false, error: '剪切板里没有图片（先用 Win+Shift+S 截一张）' };
+      const dir = path.join(app.getPath('userData'), 'files');
+      fs.mkdirSync(dir, { recursive: true });
+      const dst = path.join(dir, 'clip-' + stamp() + '.png');
+      fs.writeFileSync(dst, img.toPNG());
+      const sz = img.getSize();
+      return { ok: true, path: dst, w: sz.width, h: sz.height };
+    } catch (e){ return { ok: false, error: String(e.message || e) }; }
+  });
+
   /* ---- 面板控制 ---- */
   /* 收起动画放完后渲染进程回来报到。这里无条件隐藏 —— 因为"由谁发起收起"
      有两条路：主进程（热区离开 / 失焦）和渲染进程（Esc / 收起按钮）。
@@ -963,6 +1151,8 @@ if (!single){
        主进程退出不保证把子进程带走 —— 留下几个孤儿 powershell 在后台
        是用户完全看不见的泄漏，攒几十个之后机器就开始卡。 */
     try { TERM.killAll(); } catch (e){ /* 退出路径上不再抛 */ }
+    /* 钉窗同样显式收掉。destroy() 不触发 closed，不会再往面板推消息。 */
+    PINS.forEach(e => { try { if (!e.win.isDestroyed()) e.win.destroy(); } catch (err){} });
   });
   /* 有托盘常驻，窗口全关了（比如被系统回收）也不退出 —— 否则用户会
      莫名其妙丢失"贴到边缘就唤出"这个能力，却看不出发生了什么。 */
@@ -1644,6 +1834,46 @@ if (process.env.JZ_DIAG){
           + ' return "board ⋯ " + r.board + " · shot ⋯ " + r.shot; })()');
         o.push('  ' + moreCount);
       } catch (e){ o.push('  板块入口自检失败: ' + (e && e.message)); }
+
+      /* === 贴图钉窗 ===
+         这轮新接的桥。判据不商量：真落一张 PNG、真发一次 shot:pin ——
+         窗口建没建、桥通没通、state 记没记，只有真开一次才知道；
+         然后真收掉，确认窗口数回到原样。反例同样要验：
+         图片不存在的记录必须 ok:false 且带着原因，不许假装钉上了。 */
+      o.push('=== 贴图钉窗 ===');
+      try {
+        const winsBefore = BrowserWindow.getAllWindows().length;
+        const dir = path.join(app.getPath('userData'), 'files');
+        fs.mkdirSync(dir, { recursive: true });
+        const pngPath = path.join(dir, '_diag-pin.png');
+        fs.writeFileSync(pngPath, nativeImage.createFromDataURL(
+          'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAFElEQVR4nGP8z8Dwn4EIwESMolUAJZ4L/6ddC4cAAAAASUVORK5CYII=').toPNG());
+        const pinRes = await win.webContents.executeJavaScript(
+          'JZ.shot.pin({ id:"_diagpin", src:' + JSON.stringify(pngPath)
+          + ', t:"自检贴图", w:320, h:200, op:80 }).then(r => JSON.stringify(r))');
+        o.push('  shot:pin 真开一次 → ' + pinRes + (String(pinRes).indexOf('"ok":true') >= 0 ? ' ✓' : ' ✗'));
+        await new Promise(r => setTimeout(r, 700));
+        const winsPinned = BrowserWindow.getAllWindows().length;
+        const pinWin = BrowserWindow.getAllWindows().find(w => w.getTitle().indexOf('自检贴图') >= 0);
+        o.push('  钉窗建出来 → 窗口数 ' + winsBefore + '→' + winsPinned
+          + ' · 标题命中 ' + (pinWin ? 'ok' : '✗ 没找到'));
+        const stateRes = await win.webContents.executeJavaScript(
+          'JZ.shot.state().then(r => JSON.stringify(r))');
+        o.push('  shot:state → ' + stateRes
+          + (String(stateRes).indexOf('_diagpin') >= 0 ? ' ✓ 记着这张' : ' ✗ 没记'));
+        const unpinRes = await win.webContents.executeJavaScript(
+          'JZ.shot.unpin("_diagpin").then(r => JSON.stringify(r))');
+        await new Promise(r => setTimeout(r, 400));
+        const winsAfter = BrowserWindow.getAllWindows().length;
+        o.push('  shot:unpin → ' + unpinRes + ' · 窗口数回落 ' + winsAfter
+          + (winsAfter === winsBefore ? ' ✓' : ' ✗'));
+        const pinFake = await win.webContents.executeJavaScript(
+          'JZ.shot.pin({ id:"_diagpin2", src:"C:\\\\juzhen_no_such_zzz\\\\nope.png" }).then(r => JSON.stringify(r))');
+        o.push('  shot:pin 图片不存在 → ' + pinFake
+          + (String(pinFake).indexOf('"ok":false') >= 0 && String(pinFake).indexOf('不在') >= 0
+            ? ' ✓ 带原因拒绝' : ' ✗ 必须拒绝并说明'));
+        try { fs.unlinkSync(pngPath); } catch (e){}
+      } catch (e){ o.push('  贴图钉窗自检失败: ' + (e && e.message)); }
 
       /* === 预览按钮 & 最近使用 ===
          这一轮修的是"桥通了、但没接线"：预览面板上的「打开原文件 / 在文件夹中

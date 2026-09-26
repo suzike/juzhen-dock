@@ -239,7 +239,21 @@ const $  = id => document.getElementById(id);
 const $$ = sel => Array.prototype.slice.call(document.querySelectorAll(sel));
 const qq = s => String(s == null ? '' : s).toLowerCase();
 const stg = () => (state.query ? '' : ' data-stagger');
-const emptyBox = t => '<div class="empty-hint">' + esc(t) + '</div>';
+/* 空态（R4 重构）：不是一句"没有"就完事 —— 空态是该板块的"第一次使用向导"。
+   结构：图标 + 主句 + 提示 + 可选动作按钮（act 传 {act,icon,label}，
+   动作名必须是 handleAct 里真实存在的分支 —— 有按钮就要有反应）。
+   老调用 emptyBox('主句\n提示') 完全兼容。 */
+const emptyBox = (t, act) => {
+  const ls = String(t).split('\n');
+  const btn = act
+    ? '<div class="empty-a"><button class="mini pri" data-act="' + esc(act.act) + '">'
+      + IC(act.icon || 'plus', 13) + esc(act.label || '现在就加一条') + '</button></div>'
+    : '';
+  return '<div class="empty-hint"><div class="empty-ico">' + IC('tray', 20) + '</div>'
+    + '<div class="empty-t">' + esc(ls[0]) + '</div>'
+    + (ls[1] ? '<div class="empty-s">' + esc(ls[1]) + '</div>' : '')
+    + btn + '</div>';
+};
 
 const toast = (function(){
   let t = null;
@@ -380,8 +394,17 @@ function pageHead(p, extra, noAct){
     : '';
   const addBtn = (noAct || !act) ? ''
     : '<button class="ph-act" data-act="' + act + '" title="新增">' + IC('plus', 15) + '</button>';
+  /* 眉标只对"有分组归属"的页渲染；页码只对 PAGES 里的真页算
+     （搜索页是合成对象，不在数组里 —— R4 审查抓到的 undefined · 00）。 */
+  const pgIdx = PAGES.indexOf(p);
+  const kicker = p.group
+    ? '<div class="phero-k">' + esc(p.group)
+      + (pgIdx >= 0 ? ' · ' + String(pgIdx + 1).padStart(2, '0') : '') + '</div>'
+    : '';
   return '<div class="phero" style="' + vars(pageColor(p)) + '">'
-       + '<div class="phero-tx"><div class="phero-t">' + esc(p.title) + '</div>'
+       + '<div class="phero-tx">'
+       + kicker
+       + '<div class="phero-t">' + esc(p.title) + '</div>'
        + '<div class="phero-s">' + esc(extra || p.sub) + '</div></div>'
        + (infoBtn || addBtn ? '<div class="phero-tools">' + infoBtn + addBtn + '</div>' : '')
        + '<div class="phero-art">' + (ILLUS[p.id] || '') + '</div></div>';
@@ -445,7 +468,8 @@ function buildFolders(){
      空列表也要挂上新增按钮：删完之后没有入口，这一页就永久空了。 */
   const addRow = '<div class="acts-row"><button data-act="folder-new">'
     + IC('plus', 14) + '新增文件夹</button></div>';
-  if (!list.length) return html + emptyBox('还没有文件夹入口\n加一个常去的项目目录') + addRow;
+  if (!list.length) return html + emptyBox('还没有文件夹入口\n加一个常去的项目目录',
+    { act:'folder-new', icon:'plus', label:'登记第一个目录' }) + addRow;
   html += groups.map(g => {
     const cards = g.items.map(f =>
       '<div class="row" data-kind="folder" data-path="' + esc(f.path) + '"'
@@ -475,7 +499,8 @@ function buildLinks(){
     ? list.length + ' 个站点 · 按用途自动归为 ' + groups.length + ' 组' : '按用途自动归类');
   const addRow = '<div class="acts-row"><button data-act="link-new">'
     + IC('plus', 14) + '新增网址</button></div>';
-  if (!list.length) return html + emptyBox('还没有网址入口\n加一个常去的平台或文档站') + addRow;
+  if (!list.length) return html + emptyBox('还没有网址入口\n加一个常去的平台或文档站',
+    { act:'link-new', icon:'plus', label:'登记第一个网址' }) + addRow;
   html += groups.map(g => {
     const cards = g.items.map(l =>
       '<div class="row" data-kind="link" data-url="' + esc(l.url) + '" data-host="' + esc(l.host) + '"'

@@ -85,7 +85,21 @@ const THEMES = [
     paper:'#F5F3F0', paper2:'#FFFFFF', paper3:'#E9E6E2', side:'#F0EDEA',
     ink1:'#1A1D20', ink2:'#3E464B', ink3:'#61686E', ink4:'#9AA1A6',
     hues:['#50616d'],
-    glow:['#e2e2e1','#e3e6e8','#e6e4e1','#e4e2e5'] }
+    glow:['#e2e2e1','#e3e6e8','#e6e4e1','#e4e2e5'] },
+
+  /* ↓ R9 扩充两套，仍守这条规矩：纸面与墨阶从主色同族推导，
+     一套主题只带"纸面 + 墨 + 一个主色"三样。 */
+  { id:'dai',    name:'黛色',   sub:'浅灰紫纸 · 黛蓝主色',
+    paper:'#F5F4F8', paper2:'#FFFFFF', paper3:'#E8E7F0', side:'#EFEEF5',
+    ink1:'#1F1D2B', ink2:'#45425A', ink3:'#666279', ink4:'#A39EB2',
+    hues:['#4A4266'],
+    glow:['#e1e0e9','#dee2e8','#e5e1e6','#e3e0e8'] },
+
+  { id:'zhusha', name:'朱砂',   sub:'浅暖纸 · 朱砂主色',
+    paper:'#FBF3EF', paper2:'#FFFFFF', paper3:'#F7E3DA', side:'#FAEDE6',
+    ink1:'#2E1C16', ink2:'#5C3E32', ink3:'#7D5C4E', ink4:'#B09789',
+    hues:['#C3272B'],
+    glow:['#f0ded4','#eee0d2','#f1e1da','#eadfe0'] }
 ];
 
 const hex2rgb = h => { const n = parseInt(h.slice(1), 16); return [(n>>16)&255, (n>>8)&255, n&255]; };
@@ -217,6 +231,16 @@ function applyTheme(id){
   set('--sh-panel', '0 34px 90px -30px ' + rgba(t.ink1,.30) + ',0 4px 12px -5px ' + rgba(t.ink1,.10) + ',inset 0 1px 0 ' + rgba('#FFFFFF',.92));
   set('--sh-card', '0 2px 8px -3px ' + rgba(t.ink1,.12));
   set('--sh-lift', '0 18px 34px -16px ' + rgba(t.ink1,.30));
+}
+
+/* 夜间自动水墨（R9）：nightAuto 开着时，19:00–06:00 用「水墨」，
+   其余时间用你选的主题。只换主题、不动任何偏好 —— 关掉开关，
+   applyTheme(你选的主题) 立刻回来。boot 与边界定时器都走这一个口径，
+   "几点算夜里"只许有这一份答案。 */
+function effThemeId(){
+  if (!state.settings.nightAuto) return state.settings.theme;
+  const h = new Date().getHours();
+  return (h >= 19 || h < 6) ? 'inkwash' : state.settings.theme;
 }
 
 /* 由分类名派生颜色 —— 在整套色轮里轮转，保证同一分类永远同色 */

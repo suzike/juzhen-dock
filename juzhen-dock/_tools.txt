@@ -223,7 +223,24 @@ const CONV = [
   { id:'torq', name:'扭矩', base:'N·m', def:28,
     u:{ 'N·m':lin(1,0), 'kgf·m':lin(9.80665,0), 'lbf·ft':lin(1.355818,0), 'lbf·in':lin(0.112985,0) } },
   { id:'en',   name:'能量', base:'kJ', def:3600,
-    u:{ 'kJ':lin(1,0), 'J':lin(0.001,0), 'kWh':lin(3600,0), 'kcal':lin(4.1868,0), 'BTU':lin(1.05506,0) } }
+    u:{ 'kJ':lin(1,0), 'J':lin(0.001,0), 'kWh':lin(3600,0), 'kcal':lin(4.1868,0), 'BTU':lin(1.05506,0) } },
+  /* ---- R7 扩充：热管理 / 空调工程师手边常查的七组 ----
+     全部是线性单位（lin(k,0)），换算系数抄自 NIST 手册口径，
+     不做"大约"——换算错一位，台架就白跑。 */
+  { id:'len',  name:'长度', base:'m', def:1,
+    u:{ 'm':lin(1,0), 'mm':lin(0.001,0), 'cm':lin(0.01,0), 'km':lin(1000,0), 'in':lin(0.0254,0), 'ft':lin(0.3048,0) } },
+  { id:'mass', name:'质量', base:'kg', def:1,
+    u:{ 'kg':lin(1,0), 'g':lin(0.001,0), 't':lin(1000,0), 'lb':lin(0.45359237,0), 'oz':lin(0.028349523,0) } },
+  { id:'area', name:'面积', base:'m²', def:1,
+    u:{ 'm²':lin(1,0), 'cm²':lin(0.0001,0), 'mm²':lin(0.000001,0), 'ft²':lin(0.09290304,0), 'in²':lin(0.00064516,0) } },
+  { id:'vol',  name:'体积', base:'L', def:1,
+    u:{ 'L':lin(1,0), 'mL':lin(0.001,0), 'm³':lin(1000,0), 'US gal':lin(3.785411784,0), 'ft³':lin(28.316846592,0) } },
+  { id:'htc',  name:'换热系数', base:'W/(m²·K)', def:500,
+    u:{ 'W/(m²·K)':lin(1,0), 'kW/(m²·K)':lin(1000,0), 'BTU/(h·ft²·℉)':lin(5.678263341,0), 'kcal/(h·m²·℃)':lin(1.163,0) } },
+  { id:'tc',   name:'导热系数', base:'W/(m·K)', def:0.6,
+    u:{ 'W/(m·K)':lin(1,0), 'kW/(m·K)':lin(1000,0), 'BTU·in/(h·ft²·℉)':lin(0.144227888,0), 'kcal/(m·h·℃)':lin(1.163,0) } },
+  { id:'dens', name:'密度', base:'kg/m³', def:1000,
+    u:{ 'kg/m³':lin(1,0), 'g/cm³':lin(1000,0), 'lb/ft³':lin(16.0184634,0), 'lb/gal(US)':lin(119.826427,0) } }
 ];
 const convGroup = id => CONV.find(g => g.id === id) || CONV[0];
 
@@ -235,19 +252,36 @@ const convGroup = id => CONV.find(g => g.id === id) || CONV[0];
 function buildToday(){
   const p = PAGE_MAP.today;
   const undone = TOOL.todos.filter(t => !t.done).length;
-  let html = pageHead(p, (undone ? '还有 ' + undone + ' 项待办' : '今日待办已清空') + ' · ' + TOOL.recent.length + ' 项最近使用');
+  const done = TOOL.todos.length - undone;
+  const curS = TOOL.scenes.find(s => s.id === state.scene);
+  let html = pageHead(p, todGreet() + ' · ' + (curS ? '「' + curS.name + '」' : '未选择') + '场景'
+    + ' · ' + (undone ? '还有 ' + undone + ' 项待办' : '待办已清空'));
 
-  /* 这三格原来有两格是写死的（12 和 3）。首页最容易被盯着看，
-     摆着永远不动的数字比空着更可疑 —— 换成三项都能当场算出来的指标。 */
-  html += '<div class="td-stat">'
+  /* 进度环（R6）：把"已完成"从一格数字升级成一眼可读的形状。
+     空清单不画假进度 —— 环中央如实给「—」，不假装 100%。 */
+  const pct = TOOL.todos.length ? Math.round(done * 100 / TOOL.todos.length) : -1;
+  const CC = 2 * Math.PI * 34;
+  html += '<div class="td-hero" style="' + vars(ACC[0]) + '">'
+    + '<div class="td-ring"><svg viewBox="0 0 84 84" aria-hidden="true">'
+    + '<circle class="td-ring-bg" cx="42" cy="42" r="34"/>'
+    + '<circle class="td-ring-fg" cx="42" cy="42" r="34" style="stroke-dasharray:' + CC.toFixed(1)
+    + ';stroke-dashoffset:' + (CC * (1 - Math.max(0, Math.min(100, pct)) / 100)).toFixed(1) + '"/>'
+    + '</svg><div class="td-ring-t"><div class="td-ring-n">'
+    + (pct >= 0 ? pct + '%' : '—') + '</div><div class="td-ring-l">已完成</div></div></div>'
+    + '<div class="td-hero-r">'
     + statCell('待办剩余', undone, 'check', ACC[0])
-    + statCell('已完成', TOOL.todos.filter(t => t.done).length, 'sparkle', ACC[3])
     + statCell('剪切记录', DATA.board.length, 'board', ACC[4])
-    + '</div>';
+    + '</div></div>';
+
+  /* 快捷加待办（R6）：想到就记一条，不用开表单 —— 标签/时间走默认
+     （待办 · 今天），要精修的仍走下面「新增待办」的完整表单。 */
+  html += '<div class="todo-quick"><input id="todoQuick" type="text" autocomplete="off" spellcheck="false"'
+    + ' placeholder="写一句要做什么，回车即加（今天 · 待办）">'
+    + '<button class="mini" data-act="todo-quick" title="添加这条待办">' + IC('plus', 13) + '</button></div>';
 
   const todoCards = TOOL.todos.map((t, i) =>
     '<div class="todo' + (t.done ? ' done' : '') + '" data-act="todo-toggle" data-id="' + t.id + '"'
-    + ' data-kind="todo"'
+    + ' data-kind="todo" tabindex="0" title="点击勾选 / 取消勾选"'
     + ' style="--i:' + Math.min(i, 9) + '"' + stg() + '>'
     + '<span class="td-ck">' + IC('check', 11) + '</span>'
     + '<span class="td-tx">' + esc(t.text) + '</span>'
@@ -266,7 +300,7 @@ function buildToday(){
      挂 ⋯ 只为了"移除"一项：这条日志没有可改的东西，但没有删除入口时，
      误记进来的路径只能等被新记录挤掉。 */
   const recCards = TOOL.recent.map((r, i) =>
-    '<div class="row" data-kind="recent" data-path="' + esc(r.path) + '"'
+    '<div class="row" data-kind="recent" data-path="' + esc(r.path) + '" tabindex="0"'
     + ' style="--i:' + Math.min(i, 9) + '"' + stg() + '>'
     + '<div class="ic">' + IC(r.kind === 'folder' ? 'folder'
         : (fileKind(r.name) === 'sheet' ? 'sheet' : 'file'), 17) + '</div>'
@@ -283,6 +317,25 @@ function buildToday(){
 function statCell(label, n, icon, c){
   return '<div class="td-cell" style="' + vars(c) + '"><span class="td-cico">' + IC(icon, 15) + '</span>'
     + '<span class="td-cn">' + n + '</span><span class="td-cl">' + esc(label) + '</span></div>';
+}
+/* 时段问候（R6）：首页每次唤出都该像"现在"而不是像昨天截的图。 */
+function todGreet(){
+  const h = new Date().getHours();
+  return h < 5 ? '夜深了' : h < 11 ? '早上好' : h < 13 ? '中午好' : h < 18 ? '下午好' : '晚上好';
+}
+/* 快捷加待办（R6）：一句话 + 回车。默认值写死（待办 · 今天）是有意的 ——
+   这条路的价值就是零决策；要标签和时间的还有下面的完整表单。 */
+function todoQuickAdd(){
+  const inp = $('todoQuick');
+  if (!inp) return;
+  const v = inp.value.trim();
+  if (!v) return toast('先写要做什么');
+  TOOL.todos.unshift({ id:'t' + uid(), text:v, done:false, tag:'待办', when:'今天' });
+  mark('todos');
+  refresh(['today']);
+  toast('已加上 · ' + (v.length > 20 ? v.slice(0, 20) + '…' : v));
+  /* 重画之后输入框是新的节点，把焦点还回去 —— 连着记三条不打断手 */
+  setTimeout(() => { const n = $('todoQuick'); if (n) n.focus(); }, 30);
 }
 
 /* ---------- 场景 ---------- */
@@ -381,18 +434,31 @@ function buildScene(){
 /* ---------- 片段与命令 ---------- */
 function buildSnip(){
   const p = PAGE_MAP.snip;
-  const list = pick(TOOL.snips, ['name','lang','g','text']);
-  let html = pageHead(p, '共 ' + TOOL.snips.length + ' 条 · 带 {{变量}} 的会先让你填');
+  /* 收藏筛选（R8）：state.snipFav 是视图状态（不落盘）——
+     "我现在只想看钉住的那几条"是此时此刻的事，不是要记住的数据。 */
+  const favN = TOOL.snips.filter(s => s.fav).length;
+  const all = !state.snipFav;
+  const base = all ? TOOL.snips : TOOL.snips.filter(s => s.fav);
+  const list = pick(base, ['name','lang','g','text']);
+  let html = pageHead(p, '共 ' + TOOL.snips.length + ' 条 · 带 {{变量}} 的会先让你填')
+    + '<div class="fchips"><button class="fchip' + (all ? ' on' : '') + '" data-act="snip-flt" data-v="">全部 '
+    + TOOL.snips.length + '</button>'
+    + '<button class="fchip' + (!all ? ' on' : '') + '" data-act="snip-flt" data-v="1">★ 收藏 '
+    + favN + '</button></div>';
   const addRow = '<div class="acts-row"><button data-act="snip-new">'
     + IC('plus', 14) + '新增片段</button></div>';
-  if (!list.length) return html + emptyBox('没有匹配的片段') + addRow;
+  if (!list.length) return html + emptyBox(all ? '没有匹配的片段'
+    : '还没有收藏的片段\n点片段标题旁的 ★ 收起来，它们会聚在这一栏') + addRow;
 
   const card = (s, i) =>
-    '<div class="snip" data-act="snip-copy" data-id="' + s.id + '" data-kind="snip"'
+    '<div class="snip" data-act="snip-copy" data-id="' + s.id + '" data-kind="snip" tabindex="0"'
+    + ' title="点击复制（带 {{变量}} 的会先让你填）"'
     + ' style="--i:' + Math.min(i, 9) + '"' + stg() + '>'
     + '<div class="snip-h"><span class="snip-lang">' + esc(s.lang) + '</span>'
     + '<span class="snip-nm">' + esc(s.name) + '</span>'
     + (s.vars.length ? '<span class="snip-v">' + s.vars.length + ' 变量</span>' : '')
+    + '<button class="snip-fav' + (s.fav ? ' on' : '') + '" data-act="snip-fav" data-id="' + s.id
+    + '" title="' + (s.fav ? '取消收藏' : '收藏（会聚到 ★ 栏）') + '">' + IC('star', 13) + '</button>'
     + '<span class="snip-cp">' + IC('copy', 13) + '</span>'
     + '<button class="ctx-more" data-act="ctx-open" title="编辑 / 删除">' + IC('more', 13) + '</button>'
     + '</div><pre class="snip-code">' + esc(s.text) + '</pre></div>';
@@ -477,7 +543,14 @@ function calcUpdate(){
     const base = g.u[state.convFrom].to(v);
     out.innerHTML = Object.keys(g.u).filter(u => u !== state.convFrom).map(u => {
       const r = g.u[u].from(base);
-      return '<div class="cvo"><span class="cvo-v">' + fmtNum(r) + '</span><span class="cvo-u">' + esc(u) + '</span></div>';
+      /* R7：整行可点 = 复制"值 + 单位"（贴进表格/邮件才不用手动补单位）；
+         行尾 ⇄ = 把这个单位和值换回输入框（倒着算），数值走全精度
+         dataset 而不是显示值 —— 显示值经 fmtNum 截位，倒算会攒误差。 */
+      return '<div class="cvo" data-act="conv-copy" data-v="' + String(r) + '" data-u="' + esc(u)
+        + '" title="点击复制，行尾 ⇄ 换成转换源">'
+        + '<span class="cvo-v">' + fmtNum(r) + '</span><span class="cvo-u">' + esc(u) + '</span>'
+        + '<button class="ctx-more cvo-sw" data-act="conv-use" data-v="' + String(r) + '" data-u="' + esc(u)
+        + '" title="把这个单位换到输入框">' + IC('swap', 11) + '</button></div>';
     }).join('');
   }
 
@@ -536,8 +609,24 @@ function buildNote(){
     + '<button class="nb" data-act="note-save">' + IC('plus', 13) + '记下</button></div></div>';
 
   if (!TOOL.notes.length) return html + emptyBox('还没有速记\n在上方写点什么试试');
+
+  /* 标签筛选（R8）：标签从数据里现长出来（写死名单会跟用户自起的标签
+     走散）。筛选是视图状态，不落盘。 */
+  const tags = [];
+  TOOL.notes.forEach(n => { if (n.tag && tags.indexOf(n.tag) < 0) tags.push(n.tag); });
+  if (tags.length > 1){
+    html += '<div class="fchips"><button class="fchip' + (!state.noteTag ? ' on' : '')
+      + '" data-act="note-flt" data-t="">全部 ' + TOOL.notes.length + '</button>'
+      + tags.map(t => '<button class="fchip' + (state.noteTag === t ? ' on' : '')
+        + '" data-act="note-flt" data-t="' + esc(t) + '">' + esc(t) + ' '
+        + TOOL.notes.filter(n => n.tag === t).length + '</button>').join('') + '</div>';
+  }
+  const shown = state.noteTag ? TOOL.notes.filter(n => n.tag === state.noteTag) : TOOL.notes;
+  if (!shown.length) return html + emptyBox('「' + state.noteTag + '」标签下还没有速记\n换个标签，或记一条带这个标签的');
+
   const card = (n, i) =>
-    '<div class="ncard" data-kind="note" data-id="' + n.id + '" style="--i:' + Math.min(i, 9) + '"' + stg() + '>'
+    '<div class="ncard" data-kind="note" data-id="' + n.id + '" tabindex="0" title="点击编辑这条速记"'
+    + ' style="--i:' + Math.min(i, 9) + '"' + stg() + '>'
     + '<div class="ncard-tx">' + esc(n.text) + '</div>'
     + '<div class="ncard-f"><span class="ncard-tag">' + esc(n.tag) + '</span>'
     + '<span class="ncard-at">' + esc(n.at) + '</span>'
@@ -547,7 +636,7 @@ function buildNote(){
     + '<button class="ctx-more" data-act="ctx-open" title="编辑 / 删除">' + IC('more', 12) + '</button></div></div>';
   let k = 0;
   ['今天','昨天','更早'].forEach(d => {
-    const items = TOOL.notes.filter(n => n.day === d);
+    const items = shown.filter(n => n.day === d);
     if (!items.length) return;
     html += gcard(d, items.length, items.map(n => card(n, k++)).join(''),
       { icon: d === '今天' ? 'note' : d === '昨天' ? 'clock' : 'layers', one:true });
@@ -558,41 +647,69 @@ function buildNote(){
 /* ---------- 贴图钉屏 ---------- */
 function buildShot(){
   const p = PAGE_MAP.shot;
-  let html = pageHead(p, '把参考图钉在桌面最上层 · 不用来回切窗口');
-  /* 贴图要的是"另开一个可拖动的无边框小窗钉在桌面上"，
-     那是一个独立的窗口，不是面板里的一张卡。这一层没做，所以不能写
-     "桌面版由无边框置顶窗口实现：可拖动、可缩放" —— 桌面版的面板恰恰
-     是不可拖动、不可缩放的固定窗口。 */
-  html += '<div class="td-tip">' + IC('camera', 15)
-    + '<span>' + (DESK
-        ? '贴图还没做：真正的贴图要另开一个无边框置顶小窗，能拖动、缩放、调透明度、'
-          + '关掉面板也不消失。现在这里只是一个占位列表。'
-        : '设计意图是让参考图脱离面板单独钉在桌面上：可拖动、可缩放、可调透明度，'
-          + '关掉面板也不会消失。') + '</span></div>';
-  if (!TOOL.shots.length) return html + emptyBox('还没有贴图\n截图后点这里钉住');
+  let html = pageHead(p, DESK
+    ? 'Win+Shift+S 截图后「钉住剪切板」，或选一张图片，钉在桌面最上层'
+    : '让参考图脱离面板钉在桌面上 —— 桌面版的能力，浏览器里只登记占位记录');
+  if (DESK){
+    /* 说清三件用户一定会问的事：图从哪来（剪切板 / 选文件）、
+       副本是怎么回事、关掉聚珍之后钉窗去哪了。 */
+    html += '<div class="td-tip">' + IC('camera', 15)
+      + '<span>钉图是独立的无边框置顶小窗：按住图面拖动，拖边角缩放，'
+        + '悬停出控制条调透明度，收起面板也不消失。图片会先复制一份副本，'
+        + '原件挪走删掉都不影响；退出聚珍时钉窗跟着关，记录和上次摆位都留着，'
+        + '下次一键钉回原位。</span></div>';
+  } else {
+    html += '<div class="td-tip">' + IC('camera', 15)
+      + '<span>设计意图是让参考图脱离面板单独钉在桌面上：可拖动、可缩放、'
+        + '可调透明度，关掉面板也不会消失。浏览器里没有窗口可钉，'
+        + '下面只是占位记录。</span></div>';
+  }
+  if (!TOOL.shots.length) return html + emptyBox(DESK
+    ? '还没有贴图\nWin+Shift+S 截图后点下面这颗按钮'
+    : '还没有贴图\n截图后点这里钉住',
+    DESK ? { act:'shot-paste', icon:'camera', label:'钉住剪切板里的图' } : undefined);
 
-  const cards = TOOL.shots.map((s, i) =>
-    '<div class="shot" data-kind="shot" data-id="' + s.id + '" style="--i:' + Math.min(i, 9) + '"' + stg() + '>'
-    + '<div class="shot-img"><svg viewBox="0 0 160 92" aria-hidden="true">'
-    + '<rect width="160" height="92" fill="var(--cb-soft)"/>'
-    + '<path d="M0 70l34-30 24 20 18-14 30 24z" fill="var(--cb)" opacity=".28"/>'
-    + '<circle cx="126" cy="26" r="11" fill="var(--cb)" opacity=".45"/></svg>'
-    + '<span class="shot-pin">' + IC('pinV', 13) + '</span></div>'
-    + '<div class="shot-b"><div class="shot-bt"><div class="shot-t">' + esc(s.t) + '</div>'
-    /* 贴图卡片原来只有一个透明度滑杆是可操作的，改名 / 删除全靠右键。
-       FORMS.shot 和 ctxFor('shot') 都在，缺的同样只是可见入口。 */
-    + '<button class="ctx-more" data-act="ctx-open" title="编辑 / 删除">' + IC('more', 13) + '</button></div>'
-    + '<div class="shot-m">' + s.w + '×' + s.h + ' · ' + esc(s.at) + '</div>'
-    + '<div class="shot-op"><input type="range" data-shot-op="' + s.id + '" min="30" max="100" value="' + s.op + '">'
-    + '<span class="shot-ov">' + s.op + '%</span></div></div></div>').join('');
-  html += gcard('已钉在桌面', TOOL.shots.length, cards, { icon:'camera' });
+  const cards = TOOL.shots.map((s, i) => {
+    const pinned = DESK && PINNED.has(s.id);
+    /* 有 src 的是真图：缩略图直接吃文件（页面本身就是 file:// 载入的，
+       同源允许）。加载失败（原件被删 / 盘没挂）由捕获阶段的 error
+       监听换成"图片文件已不在"的占位 —— 不摆一张永远裂开的图。 */
+    const imgHtml = s.src
+      ? '<img class="shot-real" src="' + esc(shotFileUrl(s.src)) + '" alt="" data-shot-img="' + s.id + '">'
+      : '<svg viewBox="0 0 160 92" aria-hidden="true">'
+        + '<rect width="160" height="92" fill="var(--cb-soft)"/>'
+        + '<path d="M0 70l34-30 24 20 18-14 30 24z" fill="var(--cb)" opacity=".28"/>'
+        + '<circle cx="126" cy="26" r="11" fill="var(--cb)" opacity=".45"/></svg>';
+    return '<div class="shot' + (pinned ? ' shot-on' : '') + '" data-kind="shot" data-id="' + s.id + '" tabindex="0" title="点击改名"'
+    + ' style="--i:' + Math.min(i, 9) + '"' + stg() + '>'
+      + '<div class="shot-img">' + imgHtml
+      + '<span class="shot-pin">' + IC(pinned ? 'unpin' : 'pinV', 13) + '</span></div>'
+      + '<div class="shot-b"><div class="shot-bt"><div class="shot-t">' + esc(s.t) + '</div>'
+      + '<button class="ctx-more" data-act="ctx-open" title="编辑 / 删除">' + IC('more', 13) + '</button></div>'
+      + '<div class="shot-m">' + (s.src ? '' : '<span class="badge">占位 · 没有图</span> ')
+        + s.w + '×' + s.h + ' · ' + esc(s.at) + '</div>'
+      + '<div class="shot-op"><input type="range" data-shot-op="' + s.id + '" min="30" max="100" value="' + s.op + '">'
+      + '<span class="shot-ov">' + s.op + '%</span></div>'
+      /* 钉住/收起是同一颗按钮：钉着就显示"收起"。data-id 跟着按钮走 ——
+         handleAct 读的是被点元素自己的 data-id，不往上爬。 */
+      + (DESK ? '<div class="shot-acts"><button class="mini' + (pinned ? ' pri' : '')
+        + '" data-act="shot-pin" data-id="' + s.id + '">'
+        + IC(pinned ? 'unpin' : 'pinV', 13) + (pinned ? '收起' : '钉住') + '</button></div>' : '')
+      + '</div></div>';
+  }).join('');
+  html += gcard(DESK ? '钉在桌面' : '贴图记录', TOOL.shots.length, cards, { icon:'camera' });
 
-  /* 按钮文案必须跟真正会发生的事一致：
-     这里既没有截屏能力、也没有真的"钉"，只是手工登记一条记录。
-     写"钉一张新截图"／"全部取消钉住"会让用户以为背后有截屏和钉屏，
-     点完发现是另一回事 —— 正是"说得比做得多"那类最容易失信的地方。 */
-  html += '<div class="acts-row"><button data-act="shot-add">' + IC('camera', 14) + '手工登记一张贴图</button>'
-    + '<button data-act="shot-clear">' + IC('x', 14) + '清空这个列表</button></div>';
+  if (DESK){
+    /* 文案跟真正会发生的事一致：这两颗都是"落副本 + 钉上"，不含糊。 */
+    html += '<div class="acts-row">'
+      + '<button class="pri" data-act="shot-paste">' + IC('camera', 14) + '钉住剪切板里的图</button>'
+      + '<button data-act="shot-add">' + IC('folder', 14) + '选一张图片钉上</button>'
+      + '<button data-act="shot-clear">' + IC('x', 14) + '清空这个列表</button></div>';
+  } else {
+    /* 浏览器里没有截屏、也没有钉窗：文案照实说，这里只是手工登记一条记录。 */
+    html += '<div class="acts-row"><button data-act="shot-add">' + IC('camera', 14) + '手工登记一张贴图</button>'
+      + '<button data-act="shot-clear">' + IC('x', 14) + '清空这个列表</button></div>';
+  }
   return html;
 }
 
