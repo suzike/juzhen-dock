@@ -16,7 +16,9 @@
 import os
 from PIL import Image
 
-ROOT = r'E:\Agentic_Engineering\Workbuddy\2026-09-15-10-49-43'
+# 仓库根 = 本脚本上两级（juzhen-dock/juzhen-dock/ → 仓库根）。
+# 原先写死在作者旧工作区的绝对路径上，换一台机器就拍不出 README 配图。
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC_BROWSER = os.path.join(ROOT, 'juzhen-dock', '_shots21')
 SRC_DESK = os.path.join(os.environ['APPDATA'], 'juzhen-dock-diag')
 DST = os.path.join(ROOT, 'docs', 'screenshots')

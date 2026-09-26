@@ -1966,8 +1966,8 @@ function renderThemePop(){
     + '<input type="range" min="30" max="100" step="5" value="' + gv + '" data-range="glass"></div>'
     + '<div class="tpop-note">每套主题换的都是同一组东西：一套纸面、一套墨色、<b>一个</b>主色。'
     + '彩色只出现在小面积点缀处（选中项、图标底、分组标题前那道短色条），其余一律走墨色深浅 —— '
-    + '上面五点就是这一套实际会用的颜色。后 6 套的主色取自中国传统色色卡'
-    + '（靛青 / 胭脂 / 绛紫 / 竹青 / 秋香色 / 墨色），纸面与墨阶是跟着主色推导出来的，'
+    + '上面五点就是这一套实际会用的颜色。后 8 套的主色取自中国传统色色卡'
+    + '（靛青 / 胭脂 / 绛紫 / 竹青 / 秋香色 / 墨色 / 黛蓝 / 朱砂），纸面与墨阶是跟着主色推导出来的，'
     + '不是传统色本身。</div>';
 }
 function closeThemePop(){ $('tpop').classList.remove('show'); $('btnTheme').classList.remove('on'); }
