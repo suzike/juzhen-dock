@@ -107,6 +107,7 @@ contextBridge.exposeInMainWorld('JZ', {
     state:    ()          => ipcRenderer.invoke('shot:state'),
     saveClip: ()          => ipcRenderer.invoke('shot:saveClip'),
     onData:   (fn) => ipcRenderer.on('jz:shotdata',   (_e, d) => fn(d)),
+    onAcc:    (fn) => ipcRenderer.on('jz:shotacc',    (_e, d) => fn(d)),
     onOp:     (fn) => ipcRenderer.on('jz:shotop',     (_e, d) => fn(d)),
     onClosed: (fn) => ipcRenderer.on('jz:shotclosed', (_e, d) => fn(d))
   },

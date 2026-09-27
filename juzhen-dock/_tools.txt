@@ -279,7 +279,10 @@ function buildToday(){
     + ' placeholder="写一句要做什么，回车即加（今天 · 待办）">'
     + '<button class="mini" data-act="todo-quick" title="添加这条待办">' + IC('plus', 13) + '</button></div>';
 
-  const todoCards = TOOL.todos.map((t, i) =>
+  /* 完成沉底（R18）：打勾的待办不再挡在没做的事前面 ——
+     展示顺序重排，数据顺序不动（打勾不打乱用户自己排的次序）。 */
+  const orderedTodos = [...TOOL.todos].sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0));
+  const todoCards = orderedTodos.map((t, i) =>
     '<div class="todo' + (t.done ? ' done' : '') + '" data-act="todo-toggle" data-id="' + t.id + '"'
     + ' data-kind="todo" tabindex="0" title="点击勾选 / 取消勾选"'
     + ' style="--i:' + Math.min(i, 9) + '"' + stg() + '>'

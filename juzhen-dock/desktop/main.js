@@ -132,7 +132,10 @@ function shotSanitize(rec){
     t: String((rec && rec.t) || '贴图').slice(0, 60),
     w: num(rec && rec.w, 560, 120, 4096),
     h: num(rec && rec.h, 360, 90, 4096),
-    op: num(rec && rec.op, 100, 30, 100)
+    op: num(rec && rec.op, 100, 30, 100),
+    /* 主题主色（R20）：钉窗控制条跟它换装。只收 #RRGGBB 形态，
+       其余一律空串回落钉窗默认色 —— 这是外部输入，不能信。 */
+    acc: /^#[0-9a-fA-F]{6}$/.test(String((rec && rec.acc) || '')) ? String(rec.acc) : ''
   } };
 }
 
@@ -1000,6 +1003,12 @@ function bind(){
         win.webContents.send('jz:shotop', { id: id, op: op });
       if (!e.win.isDestroyed() && from !== e.win.webContents)
         e.win.webContents.send('jz:shotop', { id: id, op: op });
+    }
+    /* 主题主色（R20）：换主题时面板会把新主色推给每一扇钉窗。
+       校验同 sanitize —— 非法形态直接忽略，钉窗保留上一次的颜色。 */
+    if (typeof patch.acc === 'string' && /^#[0-9a-fA-F]{6}$/.test(patch.acc)){
+      e.rec.acc = patch.acc;
+      if (!e.win.isDestroyed()) e.win.webContents.send('jz:shotacc', { id: id, acc: patch.acc });
     }
     return { ok: true };
   });

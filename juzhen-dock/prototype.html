@@ -1592,6 +1592,8 @@ body.real-desktop .pin-bar em{opacity:.9}
   transition:transform var(--dur-fast) var(--ease),box-shadow var(--dur-fast) var(--ease)}
 .sess-row:hover{transform:translateY(-2px);box-shadow:0 12px 20px -11px rgba(43,33,25,.3),inset 0 0 0 1.5px var(--cb-brd)}
 .sess-row.on{box-shadow:inset 0 0 0 1.5px var(--cb),0 12px 20px -12px var(--cb-brd)}
+/* 当前会话的名字跟着点亮（R19）：选中态不只描边，文字也升一档 */
+.sess-row.on .sess-t{color:var(--cb-ink);font-weight:var(--fw-bold)}
 .sess-b{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;padding:6px var(--sp-1) 6px 11px;
   background:none;border:none;font-family:inherit;text-align:left;cursor:pointer}
 .sess-t{font-size:var(--fs-body);font-weight:var(--fw-semi);color:var(--ink-1);
@@ -2309,6 +2311,10 @@ paste:
   '<rect x="5" y="4.6" width="14" height="16.2" rx="2.9" opacity=".32"/>'
 + '<rect x="9.2" y="2.3" width="5.6" height="4.1" rx="1.9"/>'
 + '<path d="M9.1 15.2l2 2 4-4" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>',
+
+moon:
+  '<path d="M20.9 14.5A8.9 8.9 0 0 1 9.5 3.1a1.05 1.05 0 0 0-1.38-1.24A9.6 9.6 0 1 0 22.14 13.9a1.05 1.05 0 0 0-1.24-1.4z" opacity=".32"/>'
++ '<path d="M19.9 13.1A7.9 7.9 0 0 1 10.9 4.1c0-.5.05-1 .15-1.44a8.4 8.4 0 1 0 9.3 9.3c-.46.1-.94.14-1.45.14z"/>',
 
 trash:
   '<rect x="9.4" y="2.2" width="5.2" height="3" rx="1.5"/>'
@@ -3597,7 +3603,10 @@ function buildToday(){
     + ' placeholder="写一句要做什么，回车即加（今天 · 待办）">'
     + '<button class="mini" data-act="todo-quick" title="添加这条待办">' + IC('plus', 13) + '</button></div>';
 
-  const todoCards = TOOL.todos.map((t, i) =>
+  /* 完成沉底（R18）：打勾的待办不再挡在没做的事前面 ——
+     展示顺序重排，数据顺序不动（打勾不打乱用户自己排的次序）。 */
+  const orderedTodos = [...TOOL.todos].sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0));
+  const todoCards = orderedTodos.map((t, i) =>
     '<div class="todo' + (t.done ? ' done' : '') + '" data-act="todo-toggle" data-id="' + t.id + '"'
     + ' data-kind="todo" tabindex="0" title="点击勾选 / 取消勾选"'
     + ' style="--i:' + Math.min(i, 9) + '"' + stg() + '>'
@@ -5864,6 +5873,10 @@ const CMD_ACTIONS = [
   { act:'go', id:'calc',  nm:'打开工程换算', hs:'单位 · 湿空气 · PMV 速算',   icon:'calc',     kw:'换算 calc 单位 湿空气 pmv' },
   { act:'go', id:'term',  nm:'打开终端',     hs:'真 ConPTY 会话，多标签',     icon:'terminal', kw:'终端 terminal 命令 shell' },
   { act:'store-export', nm:'导出存档',     hs:'全部数据存成一份 JSON 备份', icon:'tray',     kw:'导出 备份 存档 json export' },
+  { act:'board-read',   nm:'读取剪切板',   hs:'刚才复制的内容分型入库',     icon:'paste',    kw:'剪切板 读取 粘贴 录入 clipboard' },
+  { act:'ask-sess-new', nm:'新开速问会话', hs:'一段新对话，独立档位与知识库选择', icon:'bot', kw:'会话 速问 新建 对话 ai session' },
+  { act:'go', id:'shot',  nm:'打开贴图钉屏', hs:'把参考图钉在桌面最上层',     icon:'camera',   kw:'贴图 贴图钉屏 截图 钉 pin' },
+  { act:'cmd-night',    nm:'切换夜间自动水墨', hs:'19:00–06:00 自动用「水墨」；开着时再点即关', icon:'moon', kw:'夜间 夜 自动 水墨 深色 晚 night' },
   { act:'cmd-theme',    nm:'换个配色主题', hs:'含两套曜黑深色（曜夜 / 流萤）', icon:'palette', kw:'主题 配色 深色 暗色 曜夜 流萤 theme dark' }
 ];
 const CMD_FIND = a => a.act + (a.id ? ':' + a.id : '');
@@ -6884,6 +6897,10 @@ function setTheme(id, x, y){
     renderPage(state.page, true);
     renderRail();
     updateFoot();
+    /* 钉窗换装（R20）：把新主题的主色推给每一扇开着的钉窗。 */
+    if (DESK && JZ.shot && PINNED.size){
+      PINNED.forEach(pid => JZ.shot.update(pid, { acc: ACC[0] }));
+    }
   }, x, y);
   const nm = (THEMES.find(t => t.id === id) || {}).name || id;
   if (state.settings.nightAuto && effThemeId() !== id)
@@ -7693,26 +7710,31 @@ function askForm(title, fields, okLabel, hint){
   });
 }
 
-/* 片段变量逐个填。中途取消就停下，已填的照旧替换进去 ——
-   保证"点了就一定有东西进剪贴板"，不会因为少填一个就什么都不做。 */
+/* 片段变量填写（R18 起为一张表单一次填完，细节见函数内注释）。 */
 async function fillSnipVars(s){
-  const vals = {};
   /* 变量记忆（R8）：同一段会话里第二次复制同一条片段，上次填的值
      默认带回来 —— {{月份}} 这类变量十有八九还是那个月。记忆只在
      本次会话内有效（不落盘）：重启是新的一天，模板参数多半也该换了。
-     要换的照常改字回车即可，记忆只是默认值不是锁定值。 */
+     要换的照常改字回车即可，记忆只是默认值不是锁定值。
+     R18 重构：从"逐个弹框"改为**一张表单一次填完** —— 三个变量的
+     片段原来要点四轮弹框，打断感是碎片化的四倍。取消 = 什么都不发生
+     （旧版取消会复制半成品，反而让人困惑）。 */
   state.snipMem = state.snipMem || {};
   const mem = state.snipMem[s.id] || {};
-  for (let i = 0; i < s.vars.length; i++){
-    const v = await askText('填写变量 ' + s.vars[i], mem[s.vars[i]] || '',
-      '第 ' + (i + 1) + ' / ' + s.vars.length + ' 个变量'
-      + (mem[s.vars[i]] ? ' · 已带上上次填的值' : ''));
-    if (v === null) break;
-    vals[s.vars[i]] = v;
-  }
+  const fields = s.vars.map(k => ({
+    /* k 必须显式传：askForm 按 f.k 结账（out[it.k]=value），漏了 k
+       所有字段都写进 out["undefined"] —— 首版被审查 agent 抓出
+       "用户填的值被静默丢弃"。req:false 允许留空（留空 = 去掉占位）。 */
+    k: k, label: k, v: mem[k] || '',
+    ph: '{{' + k + '}} 的值，留空则去掉占位',
+    mono: true, req: false
+  }));
+  const vals = await askForm('填写变量 · ' + s.name, fields, '替换并复制',
+    '一次填完，Tab 切下一格' + (s.vars.some(k => mem[k]) ? '；已带上上次填的值' : '') + '。');
+  if (!vals) return;
   state.snipMem[s.id] = vals;
   let txt = s.text;
-  s.vars.forEach(k => { if (k in vals) txt = txt.split('{{' + k + '}}').join(vals[k]); });
+  s.vars.forEach(k => { txt = txt.split('{{' + k + '}}').join(vals[k] || ''); });
   doCopy(txt, s.name);
 }
 function doCopy(text, label){
@@ -8267,7 +8289,9 @@ function shotImgSize(url){
   });
 }
 function shotPinReq(s){
-  return { id:s.id, src:s.src, t:s.t, w:s.w, h:s.h, op:s.op };
+  /* acc（R20）：钉住那一刻的主题主色 —— 钉窗的控制条与滑杆跟它换装。
+     之后换主题由 setTheme 的 paint 主动推新色（JZ.shot.update acc）。 */
+  return { id:s.id, src:s.src, t:s.t, w:s.w, h:s.h, op:s.op, acc:(CUR && ACC[0]) || '' };
 }
 /* 对账：把"已经没有记录可归"的钉窗收掉。记录被清空 / 恢复示例 /
    导入存档 / 单条删除之后，那扇窗悬在桌面上谁也管不了 ——
@@ -8701,6 +8725,12 @@ function handleAct(el){
     if (a.act === 'cmd-theme'){
       /* 主题按钮是独立监听（btnTheme，非 data-act）——替用户点它 */
       if ($('btnTheme')) $('btnTheme').click();
+      return;
+    }
+    if (a.act === 'cmd-night'){
+      /* 开关型动作：setSetting 自带吐司与主题切换（走 R16 转场），
+         这里只负责把"当前是什么状态"翻过去。 */
+      setSetting('nightAuto', !state.settings.nightAuto);
       return;
     }
     const shim = document.createElement('div');
