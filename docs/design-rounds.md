@@ -34,6 +34,9 @@
 | R24 | 拖拽排序 | 全站统一协议（容器 data-dragsort/条目 data-dsid/drop 回调 DRAG_CB 三段式）：今日待办 + 片段组内，落盘即持久 | PASS · 行为级模拟 11 项全过；两处结构瑕疵（snip 键 g.name 误写、applyGroupOrder 死代码）已修 |
 | R25 | 速问停止生成 + 存为片段 | 中止链路四层（渲染 token/IPC stopToken/主进程 ASK_STOP 表/ai.js extSignal 接入），abortedByUser 与超时严格区分；回答一键存为片段（「AI 回答」分组） | PASS · 单元级直测 9/9（慢速服务中止 234ms 返回）；_aitest 回归全过 |
 | R26 | 真实站标 favicon | 网址行 + 剪切板 link 卡站标（google s2 服务 lazy 加载），error 委托三级降级（站标→图标→文字）；最近使用悬停显全路径 | PASS · 10/10 站标 src 与 host 一致；favicon 覆盖链死选择器已修（同位叠放）；内网域名第三方请求记为已知权衡 |
+| R27 | 数据自动备份 | 每日快照轮转（backups/store-YYYY-MM-DD.json，保 7 份删最老，同日去重），writeStore 成功后触发、失败静默；store:backups/backup 两桥；设置页「自动备份」行（份数/最新/立即备份/打开目录）；备份即完整存档，可直接走导入恢复 | 首审 **FAIL**（R29 的 applyHotkey 作用域错误致启动必崩，被端到端实证）→ 修复后复验：备份生成 30832B/同日去重/轮转删至恰 7 份，全部实测 |
+| R28 | 会话导出 + 使用计数 | copySessMd：整段问答拼 Markdown 复制（askSess ⋯ 菜单入口）；片段 uses 计数（fix 白名单重启保留、复制 +1、卡片 uses>0 才显示） | PASS · 审查建议 reverse（导出按先问后答）与取消不计数两处已修 |
+| R29 | 唤起键可配置 | 三选一（Alt+Space / Ctrl+Alt+J / Ctrl+Shift+Space）动态重注册；白名单校验；boot 同步；Ctrl+Alt+J 永远兜底 | 首审 **FAIL**（applyHotkey 作用域 + ctrl-shift-space 分支缺失 + 气泡文案硬编码）→ applyHotkey 挪模块顶层 + 补第三键 toggle + 气泡随实际键 → 复验（JZ_DIAG 全绿零异常）|
 
 ## 过程结论（写给下一轮）
 

@@ -21,7 +21,9 @@ contextBridge.exposeInMainWorld('JZ', {
     path:   ()        => ipcRenderer.invoke('store:path'),
     clear:  ()        => ipcRenderer.invoke('store:clear'),
     export: (data)    => ipcRenderer.invoke('store:export', data),
-    import: ()        => ipcRenderer.invoke('store:import')
+    import: ()        => ipcRenderer.invoke('store:import'),
+    backups: ()      => ipcRenderer.invoke('store:backups'),
+    backup:  ()      => ipcRenderer.invoke('store:backup')
   },
 
   /* 真实系统 */
@@ -132,6 +134,7 @@ contextBridge.exposeInMainWorld('JZ', {
   /* "全屏应用时屏蔽热区"。开关真正生效的地方在主进程的热区判定里，
      渲染侧只负责把用户的选择送过去。 */
   setFsBlock: (v)  => ipcRenderer.send('panel:fsblock', v),
+  setHotkey: (v)   => ipcRenderer.send('panel:hotkey', v),
   closed:    ()    => ipcRenderer.send('panel:closed'),
   onPanel:   (fn)  => ipcRenderer.on('jz:panel', (_e, d) => fn(d)),
   /* 托盘里切换了贴住状态，主进程推回来 */

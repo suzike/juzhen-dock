@@ -66,6 +66,7 @@ let storeFile = '';
 const S = {
   open: false,
   pinned: false,
+  hotkey: 'alt-space',
   source: 'auto',      // 'auto' = 热区滑出（不抢焦点）| 'key' = 快捷键（抢焦点）
   hovering: false,     // 指针是否停留在面板矩形内
   dwellStart: 0,
@@ -157,8 +158,38 @@ function writeStore(data){
   try {
     fs.mkdirSync(path.dirname(storePath()), { recursive: true });
     fs.writeFileSync(storePath(), JSON.stringify(data, null, 2), 'utf8');
+    dailyBackup();
     return { ok: true, file: storePath() };
   } catch (e){ return { ok: false, error: String(e.message || e) }; }
+}
+
+/* ---- 自动备份（R27）----
+   存档只有一个 store.json——误清空/存档损坏时没有退路。
+   每天首次写存档时顺手留一份快照到 backups/，保留最近 7 份，
+   更老的自动删掉。备份是完整存档，设置页「导入存档」可以直接选它恢复。
+   触发点放在 writeStore（有写才有可备的东西），同一天只备一次。 */
+function backupDir(){ return path.join(path.dirname(storePath()), 'backups'); }
+function dailyBackup(){
+  try {
+    const src = storePath();
+    if (!fs.existsSync(src)) return;
+    const dir = backupDir();
+    fs.mkdirSync(dir, { recursive: true });
+    const d = new Date(), p = n => String(n).padStart(2, '0');
+    const name = 'store-' + d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + '.json';
+    const dst = path.join(dir, name);
+    if (fs.existsSync(dst)) return;            /* 今天已经备过 */
+    fs.copyFileSync(src, dst);
+    const keep = fs.readdirSync(dir).filter(f => /^store-\d{4}-\d{2}-\d{2}\.json$/.test(f)).sort();
+    while (keep.length > 7) fs.unlinkSync(path.join(dir, keep.shift()));
+  } catch (e){ /* 备份失败不惊动用户——主存档仍是完好的 */ }
+}
+function backupsInfo(){
+  try {
+    const dir = backupDir();
+    const files = fs.readdirSync(dir).filter(f => /^store-\d{4}-\d{2}-\d{2}\.json$/.test(f)).sort().reverse();
+    return { ok: true, dir: dir, count: files.length, latest: files[0] || '' };
+  } catch (e){ return { ok: false, dir: backupDir(), count: 0, latest: '' }; }
 }
 
 /* ============================================================
@@ -912,6 +943,10 @@ function bind(){
     } catch (e){ return { ok: false, error: String(e.message || e) }; }
   });
 
+  /* ---- 自动备份（R27）---- */
+  ipcMain.handle('store:backups', () => backupsInfo());
+  ipcMain.handle('store:backup', () => { dailyBackup(); return backupsInfo(); });
+
   /* ---- 贴图钉窗 ---- */
   function shotPinCreate(rec){
     const old = PINS.get(rec.id);
@@ -1080,6 +1115,11 @@ function bind(){
   ipcMain.on('panel:fsblock', (_e, v) => { FS_BLOCK = !!v; });
   ipcMain.on('panel:hide',  () => { if (!S.pinned) closePanel('render'); });
   ipcMain.on('panel:quit',  () => app.quit());
+  /* 唤起键切换（R29）：渲染侧存设置，这边按值重注册全局快捷键 */
+  ipcMain.on('panel:hotkey', (_e, v) => {
+    S.hotkey = (['alt-space', 'ctrl-alt-j', 'ctrl-shift-space'].indexOf(v) >= 0) ? v : 'alt-space';
+    applyHotkey();
+  });
 
   /* ----------------------------------------------------------------
      真终端（ConPTY）
@@ -1122,6 +1162,31 @@ function stamp(){
   return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes());
 }
 
+/* 唤起键（R29）：按设置动态重注册。**必须声明在模块顶层**——
+   bind() 里的 panel:hotkey handler 和 whenReady 的 boot 都要调它；
+   首版声明在 whenReady 回调里，词法上对 bind() 不可见，
+   渲染侧一启动就 setHotkey → 主进程 ReferenceError（审查 R27 抓出）。 */
+function applyHotkey(){
+  globalShortcut.unregister('Alt+Space');
+  globalShortcut.unregister('Control+Alt+J');
+  globalShortcut.unregister('Control+Shift+Space');
+  const k = S.hotkey || 'alt-space';
+  const toggle = () => { if (S.open) closePanel('key'); else openPanel('key'); };
+  if (k === 'ctrl-alt-j'){
+    globalShortcut.register('Control+Alt+J', toggle);
+  } else if (k === 'ctrl-shift-space'){
+    globalShortcut.register('Control+Shift+Space', toggle);
+  } else {
+    globalShortcut.register('Alt+Space', toggle);
+  }
+  /* Ctrl+Alt+J 永远保留为"至少能唤起"的兜底（与所选重合时由它独自承担） */
+  if (k !== 'ctrl-alt-j') globalShortcut.register('Control+Alt+J', () => openPanel('key'));
+}
+function hotkeyLabel(){
+  return S.hotkey === 'ctrl-alt-j' ? 'Ctrl+Alt+J'
+    : S.hotkey === 'ctrl-shift-space' ? 'Ctrl+Shift+Space' : 'Alt+Space';
+}
+
 /* ============================================================
    生命周期
    ============================================================ */
@@ -1147,11 +1212,9 @@ if (!single){
     createTray();
     startFsWatcher();
 
-    globalShortcut.register('Alt+Space', () => {
-      if (S.open) closePanel('key'); else openPanel('key');
-    });
-    /* 备用唤起键：有些输入法/系统会占用 Alt+Space */
-    globalShortcut.register('Control+Alt+J', () => openPanel('key'));
+    applyHotkey();
+    /* 备用唤起键：有些输入法/系统会占用 Alt+Space。所选唤起键与它重合时
+       （Ctrl+Alt+J 就是被选键），它自己承担唤起+收起。 */
 
     setInterval(tick, POLL_MS);
 
@@ -1162,7 +1225,7 @@ if (!single){
     const welcomed = path.join(app.getPath('userData'), '.welcomed');
     setTimeout(() => {
       if (fs.existsSync(welcomed)){
-        if (tray) tray.displayBalloon({ title: '聚珍已就绪', content: 'Alt+Space 唤出面板，或把鼠标贴到屏幕右边缘停留片刻。' });
+        if (tray) tray.displayBalloon({ title: '聚珍已就绪', content: hotkeyLabel() + ' 唤出面板，或把鼠标贴到屏幕右边缘停留片刻。' });
         return;
       }
       openPanel('key');

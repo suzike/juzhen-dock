@@ -21,7 +21,7 @@ const state = { open:false, pinned:false, edge:'right', delay:250, motion:'stand
                 对只用 cmd 或 WSL 的人是每天重复一次的多余操作。 */
              termProfile:'powershell',
              fsBlock:true, pinned:false, boardWatch:false, copyMode:false, onboardDone:false,
-             nightAuto:false, followSystem:false,
+             nightAuto:false, followSystem:false, hotkey:'alt-space',
              /* 夜间自动水墨（R9）：默认关 —— 自动改外观是有代价的
                 （"我没动过它怎么自己变了"），必须让用户自己请进来。 */
              /* AI 速问的模型配置。默认指向 DeepSeek —— 选它的理由很实际：
@@ -267,7 +267,13 @@ function buildSettings(){
     /* 透明度紧跟在配色主题后面，但**自成一张卡** —— 它跟主题是两件事
        （主题管色，这里管材质），混在一张卡里就没人找得到。 */
     + glassCard()
-    + gcard('唤出与盯住', wakeRows.length, wakeRows.join(''), { icon:'pinV', one:true })
+    + gcard('唤出与盯住', wakeRows.length + 1, wakeRows.join('')
+      + row('唤起键', '全局快捷键：所选组合键唤出/收起面板；Ctrl+Alt+J 永远保留为备用',
+        segCtl('hotkey', [
+          ['alt-space', 'Alt+Space'],
+          ['ctrl-alt-j', 'Ctrl+Alt+J'],
+          ['ctrl-shift-space', 'Ctrl+Shift+Space']
+        ], st.hotkey || 'alt-space')), { icon:'pinV', one:true })
     + gcard('剪切板与暂存', 2,
           row('剪切板自动记录', DESK
               ? '常驻监听系统剪切板，你复制的内容自动按文本 / 链接 / 代码 / 路径分型入库'
@@ -428,6 +434,7 @@ function kbSettingsCard(){
    用户第一次打开设置页最想知道的就这一件事，与其让人去翻 AppData，
    不如直接写在这一行里。 */
 var storePathTxt = '';
+var backupInfo = null;
 function dataStoreCard(){
   const rows = colCount().map(x =>
     row(x.c.label, x.n + ' 项 · ' + (DESK ? '已写入本机存档文件' : '存在本机浏览器存储里'),
@@ -444,6 +451,13 @@ function dataStoreCard(){
         '<span class="col-chip" style="' + vars(ACC[x.c.ci]) + '">' + IC(x.c.icon, 13)
         + '<b>' + x.n + '</b>' + esc(x.c.label) + '</span>').join('') + '</div>'
     + rows.join('')
+    + (DESK ? row('自动备份', backupInfo && backupInfo.count
+          ? ('每天首次写入时留一份快照 · 已留 ' + backupInfo.count + ' 份（最新 ' + (backupInfo.latest || '') + '）')
+          : '每天首次写入时自动留一份快照，保留最近 7 份',
+        '<div class="col-ops">'
+      + '<button class="mini" data-act="backup-now">立即备份</button>'
+      + (backupInfo && backupInfo.dir ? '<button class="mini" data-act="backup-open">打开目录</button>' : '')
+      + '</div>', 'col') : '')
     + '<div class="note">以上共 ' + total + ' 项，' + (DESK
         ? '都写在 ' + (storePathTxt || '本机存档文件') + ' 里（改动后自动落盘，不用手动保存）。'
         : '都存在本机浏览器存储里，关掉面板或重开都还在。')
@@ -1411,6 +1425,8 @@ const COLLECTIONS = [
       name:str1(o.name, '未命名片段'), text:text,
       /* 收藏标（R8）：!! 归一 —— 存档里出现 1/"1"/{} 都当真。 */
       fav:!!o.fav,
+      /* 使用计数（R28）：复制一次 +1，是"这条到底常不常用"的真实数据。 */
+      uses:num1(o.uses, 0),
       /* 变量表从正文重扫，不信存档里那份 —— 它和正文对不上时，
          复制会去问一堆正文里根本没有的名字。 */
       vars:snipVars(text) }; } },
@@ -1810,6 +1826,10 @@ function setSetting(key, val){
     const dk = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
     toast(val ? ('跟随系统已开启 · 当前系统' + (dk ? '深色，已换上「曜夜」' : '浅色，用你选的主题'))
               : '跟随系统已关闭 · 已回到你选的主题');
+  }
+  else if (key === 'hotkey'){
+    if (DESK) JZ.setHotkey(val);
+    toast('唤起键：' + (val === 'ctrl-alt-j' ? 'Ctrl+Alt+J' : val === 'ctrl-shift-space' ? 'Ctrl+Shift+Space' : 'Alt+Space'));
   }
   else if (key === 'boardWatch'){
     /* 桌面版是真监听，开关要真的把轮询开起来/停掉 */
@@ -2396,7 +2416,8 @@ function ctxFor(kind, el){
         run:() => { if (!cur) askSessUse(s.id); } },
       { icon:'swap', label:(s.mode === 'deep' ? '这一段的档位改成「快」' : '这一段的档位改成「深」'),
         run:() => { state.askSess = s.id; saveAskSess(); askSessToggle('mode'); } },
-      { icon:'book', label:(s.kb ? '关闭这一段的「知识库」' : '开启这一段的「知识库」'),
+      { icon:'copy', label:'复制整段会话 (Markdown)', run:() => copySessMd(s) },
+            { icon:'book', label:(s.kb ? '关闭这一段的「知识库」' : '开启这一段的「知识库」'),
         run:() => { state.askSess = s.id; saveAskSess(); askSessToggle('kb'); } },
       { sep:true },
       { icon:'note',  label:'重命名这一段…', run:() => editRecord('askSess', s) },
@@ -2766,6 +2787,7 @@ async function fillSnipVars(s){
     '一次填完，Tab 切下一格' + (s.vars.some(k => mem[k]) ? '；已带上上次填的值' : '') + '。');
   if (!vals) return;
   state.snipMem[s.id] = vals;
+  s.uses = (s.uses || 0) + 1; mark('snips');
   let txt = s.text;
   s.vars.forEach(k => { txt = txt.split('{{' + k + '}}').join(vals[k] || ''); });
   doCopy(txt, s.name);
@@ -3665,6 +3687,10 @@ function handleAct(el){
   } else if (act === 'snip-copy'){
     const s = TOOL.snips.find(x => x.id === id);
     if (!s) return;
+    /* 带变量的：走 fillSnipVars，确认替换成功才计数（取消不白计一次）；
+       无变量的：就地计数 + 复制。 */
+    if (s.vars.length){ fillSnipVars(s); return; }
+    s.uses = (s.uses || 0) + 1; mark('snips');
     /* 带变量的片段：逐个弹输入框填。
        这里不能用 prompt()：Electron 明确不支持它，调用直接抛错，
        片段功能在桌面版会整个挂掉。所以这一处必须有自己人写的输入浮层。 */
@@ -3743,6 +3769,13 @@ function handleAct(el){
     LS.drop(LS_QHIST);
     qHistRender();
     toast('搜索历史已清空');
+  } else if (act === 'backup-now'){
+    /* 立即备份（R27）：做实验性操作（批量导入/大改动）前手动留一个还原点。 */
+    if (!DESK || !JZ.store.backup) return toast('浏览器里没有本机备份，这个按钮只在桌面版有用');
+    JZ.store.backup().then(r => { backupInfo = r; refresh(['settings']); toast('已备份 · ' + (r.latest || '')); }, () => toast('备份失败'));
+  } else if (act === 'backup-open'){
+    if (backupInfo && backupInfo.dir) JZ.reveal(backupInfo.dir);
+    else toast('还没有备份目录');
   } else if (act === 'ask-stop'){
     /* 停止生成（R25）：按 token 叫停主进程里那条 fetch。
        真正的状态改写走 abortedByUser 回路（askRunTurn 的分支），这里只负责喊停。 */
@@ -4653,6 +4686,15 @@ async function embedTest(){
       + '遇到这种，要另外配一家：硅基流动 / 通义 / OpenAI / 本地 Ollama。', '知道了', true);
   }
 }
+/* 会话导出（R28）：整段问答拼成 Markdown 复制到剪贴板 ——
+   用户自己决定存成什么文件；这里不假装会替他管文件。 */
+function copySessMd(s){
+  const turns = TOOL.asks.filter(a => (a.sess || '') === s.id).slice().reverse();
+  if (!turns.length) return toast('这段会话还没有问答');
+  const md = '# ' + (s.title || '速问会话') + '\n\n' + turns.map(a =>
+    '**问：** ' + a.q + '\n\n' + a.a).join('\n\n---\n\n');
+  doCopy(md, '会话 Markdown（' + turns.length + ' 轮）');
+}
 /* 删一段会话 = 删它 + 它下面所有的轮次。**必须把轮次数写在确认框里**：
    用户点的是「这一段会话」，而实际会消失的可能是二十条问答。 */
 function delAskSess(s){
@@ -5304,6 +5346,8 @@ function bindDesktop(){
   onPanelOpen  = () => {};
   onPanelClose = () => JZ.closed();     /* 收起动画放完 → 请主进程把窗口藏掉 */
   JZ.setPinned(!!state.pinned);
+  /* 唤起键（R29）：设置存渲染侧，主进程按值重注册全局快捷键 */
+  JZ.setHotkey(state.settings.hotkey);
   /* 热区时延存在设置里，但"鼠标贴边停留多久算数"是主进程在算的，
      把上次的值交给它，免得用户调完滑杆重开又回到默认。 */
   JZ.setDelay(state.delay);
@@ -5326,6 +5370,8 @@ function bindDesktop(){
   JZ.meta().then(m => absorbFs(m && m.fullscreen), () => {});
   /* 存档路径写进设置页（异步取一次，设置页重建时直接读这个变量） */
   JZ.store.path().then(p => { storePathTxt = p || ''; }, () => {});
+  /* 备份信息（R27）：异步取一次，设置页重建时直接读这个变量 */
+  if (JZ.store.backups) JZ.store.backups().then(i => { backupInfo = i; }, () => {});
 
   /* ---------------- 贴图钉窗接线 ----------------
      启动先问一次"桌面上现在钉着哪几张"（上次的钉窗不会跨启动活下来，

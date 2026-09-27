@@ -477,6 +477,7 @@ function buildSnip(){
     + '<div class="snip-h"><span class="snip-lang">' + esc(s.lang) + '</span>'
     + '<span class="snip-nm">' + esc(s.name) + '</span>'
     + (s.vars.length ? '<span class="snip-v">' + s.vars.length + ' 变量</span>' : '')
+    + (s.uses ? '<span class="snip-v">' + s.uses + ' 次使用</span>' : '')
     + '<button class="snip-fav' + (s.fav ? ' on' : '') + '" data-act="snip-fav" data-id="' + s.id
     + '" title="' + (s.fav ? '取消收藏' : '收藏（会聚到 ★ 栏）') + '">' + IC('star', 13) + '</button>'
     + '<span class="snip-cp">' + IC('copy', 13) + '</span>'
