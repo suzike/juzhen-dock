@@ -295,6 +295,25 @@ function applyTheme(id){
   set('color-scheme', dk ? 'dark' : 'light');
 }
 
+/* 主题切换转场（R16）：支持 View Transitions 的浏览器（Electron 32 / Chromium 128+）
+   走"圆形揭示"—— 新主题从触发点一圈荡开。**只有给了触发坐标的调用才转场**
+   （坐标只可能来自用户点击）；定时任务、系统监听、探针这些程序化切换
+   走同步路径 —— 转场回调是异步的，"切完立即读值"的调用方（probe28
+   逐主题量对比度）会读到半新半旧的状态，这是 R16 首版踩过的真回归。
+   不支持 VT 或用户偏好减少动效时同样走同步，零降级感。 */
+function applyThemeFx(id, paint, x, y){
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (x != null && document.startViewTransition && !reduce){
+    const r = document.documentElement.style;
+    r.setProperty('--vt-x', Math.round(x) + 'px');
+    r.setProperty('--vt-y', Math.round(y) + 'px');
+    document.startViewTransition(() => { applyTheme(id); if (paint) paint(); });
+    return;
+  }
+  applyTheme(id);
+  if (paint) paint();
+}
+
 /* 夜间自动水墨（R9）：nightAuto 开着时，19:00–06:00 用「水墨」，
    其余时间用你选的主题。只换主题、不动任何偏好 —— 关掉开关，
    applyTheme(你选的主题) 立刻回来。boot 与边界定时器都走这一个口径，

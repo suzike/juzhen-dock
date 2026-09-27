@@ -299,6 +299,8 @@ body[data-edge="right"] .panel.open,body[data-edge="left"] .panel.open{
 .rbtn.on{background:var(--cb-soft);color:var(--cb-ink);box-shadow:inset 0 0 0 1.5px var(--cb-brd)}
 .rbtn.on .ri{color:var(--cb)}
 .rbtn.on::before{content:'';position:absolute;left:-8px;top:50%;transform:translateY(-50%);width:3.5px;height:18px;border-radius:0 4px 4px 0;background:var(--cb)}
+.rbtn .ri{transition:transform var(--dur-med) var(--spring),color var(--dur-fast) var(--ease)}
+.rbtn.on .ri{transform:scale(1.1)}
 /* 徽标：常态中性（灰底墨字），仅选中项用实心主色强调。0 时隐藏。 */
 .rbtn .rn{margin-left:auto;min-width:17px;height:16px;padding:0 var(--sp-1);border-radius:8px;font-size:var(--fs-micro);
   font-weight:var(--fw-bold);line-height:16px;text-align:center;color:var(--ink-3);background:var(--paper-3);font-variant-numeric:tabular-nums;
@@ -435,8 +437,9 @@ mark.hl{background:var(--a1-soft);color:var(--a1-d);border-radius:3px;padding:0 
    white-space:pre-line 是老版本两行文案的渲染方式，保留兜底。 */
 .empty-hint{padding:var(--sp-8) var(--sp-4);text-align:center;font-size:var(--fs-body);color:var(--ink-3);
   line-height:var(--lh-loose);white-space:pre-line}
-.empty-hint .empty-ico{width:40px;height:40px;margin:0 auto var(--sp-2);border-radius:13px;
-  background:var(--paper-3);color:var(--ink-4);display:flex;align-items:center;justify-content:center}
+.empty-hint .empty-ico{width:40px;height:40px;margin:0 auto var(--sp-3);border-radius:13px;
+  background:var(--paper-3);color:var(--ink-4);display:flex;align-items:center;justify-content:center;
+  position:relative;box-shadow:0 0 0 6px var(--veil)}
 .empty-hint .empty-t{font-size:var(--fs-body);font-weight:var(--fw-semi);color:var(--ink-2)}
 .empty-hint .empty-s{font-size:var(--fs-meta);color:var(--ink-4);margin-top:3px}
 .empty-hint .empty-a{margin-top:var(--sp-3)}
@@ -1123,8 +1126,26 @@ html.glass-drag,html.glass-drag *,html.glass-drag *::before,html.glass-drag *::a
   display:flex;align-items:center;justify-content:center;margin-top:1px}
 /* 模型的回答是多段的，换行必须原样保留 —— 否则整段挤成一坨没法读。 */
 .qa-a{margin-top:var(--sp-2);font-size:var(--fs-meta);line-height:var(--lh-loose);color:var(--ink-2);
-  white-space:pre-wrap;word-break:break-word}
+  white-space:pre-wrap;word-break:break-word;background:var(--surf);border-radius:var(--r-m);
+  padding:9px 11px}
+/* Markdown 渲染后气泡内边距交给 .md 自身的段落间距 */
+.qa-a .md{padding:2px 1px}
+.qa-a .md p{margin:0 0 6px}
+.qa-a .md p:last-child{margin-bottom:0}
 .qa-a.run{color:var(--ink-3);font-style:italic}
+.qa-a.run:not(:empty)::after{content:"";display:inline-block;width:7px;height:12px;
+  margin-left:3px;border-radius:2px;background:var(--cb);vertical-align:-1px;
+  animation:caret 900ms steps(2, jump-none) infinite}
+@keyframes caret{0%,49%{opacity:.95}50%,100%{opacity:.2}}
+/* ---------- 主题切换转场（R16） ----------
+   View Transitions：新主题从触发点一圈荡开（--vt-x/--vt-y 由
+   applyThemeFx 注入；定时任务没有触发点，回落面板中心）。
+   只有支持 VT 且未开"减少动效"时才会走到这里 —— JS 侧已分流。 */
+::view-transition-old(root){animation:vt-fade var(--dur-med) var(--ease) both}
+::view-transition-new(root){animation:vt-reveal var(--dur-slow) var(--ease-out) both}
+::view-transition-group(root){animation:none}
+@keyframes vt-fade{to{opacity:0}}
+@keyframes vt-reveal{from{clip-path:circle(0 at var(--vt-x,50%) var(--vt-y,50%))}to{clip-path:circle(142% at var(--vt-x,50%) var(--vt-y,50%))}}
 /* 失败用胭脂。这里必须显眼：用户以为发成功了、其实什么都没拿到，
    是最容易让人以为"这功能是装的"的一种状态。 */
 .qa-a.err{color:#B23A48}
@@ -1188,6 +1209,9 @@ table.sheet td.num{text-align:right}
 .md pre code{background:none;padding:0;color:var(--ink-2);line-height:1.75;display:block;white-space:pre}
 /* 代码块复制按钮（R14）：悬停代码块才出现 —— 常驻会打断读代码的眼睛。 */
 .md pre{position:relative}
+.md .md-lang{position:absolute;top:8px;left:10px;font-size:var(--fs-micro);font-weight:var(--fw-semi);
+  color:var(--ink-4);letter-spacing:.08em}
+.md .md-pre-lang{padding-top:26px}
 .md .md-cp{position:absolute;top:7px;right:7px;display:none;align-items:center;justify-content:center;
   width:26px;height:26px;border-radius:var(--r-s);background:var(--card);color:var(--ink-3);
   box-shadow:var(--sh-1),inset 0 0 0 1px var(--line)}
@@ -1211,6 +1235,11 @@ table.sheet td.num{text-align:right}
   transition:opacity var(--dur-slow) var(--spring),transform var(--dur-slow) var(--spring);pointer-events:none}
 .toast.show{opacity:1;transform:none}
 .toast .t-dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--a1)}
+/* 进度条（R17）：吐司还剩多久消失，一眼可见 —— 倒计时是看得见的诚实。 */
+.toast #toastBar{position:absolute;left:0;bottom:0;height:2.5px;width:100%;
+  background:var(--cb);opacity:.55;transform-origin:left;transform:scaleX(1)}
+.toast.show #toastBar{animation:toastbar 2400ms linear forwards}
+@keyframes toastbar{from{transform:scaleX(1)}to{transform:scaleX(0)}}
 .ctx{position:fixed;z-index:var(--z-ctx);min-width:190px;padding:5px;border-radius:var(--r-l);background:var(--pop);
   border:1.5px solid var(--pop-brd);
   box-shadow:0 26px 60px -22px rgba(43,33,25,.42);
@@ -1300,8 +1329,9 @@ body[data-motion="off"] .qa-a.run:empty,body[data-motion="off"] .skel{animation:
   :root{--dp:1ms;--di:1ms;--beam:1ms;--dur-fast:1ms;--dur-med:1ms;--dur-slow:1ms}
   .page [data-stagger],.pin-bar .pd,.demo-edge,.demo-panel,.demo-cursor{animation:none}
   .track{transition:none}
-  /* 骨架屏关掉位移、留一块静态底色 —— 加载中的信息还在，晃动没有 */
+  /* 骨架屏关掉位移、留一块静态底色；流式光标保持常显不闪 */
   .qa-a.run:empty,.skel{animation:none}
+  .qa-a.run:not(:empty)::after{animation:none}
   /* 按压反馈本质是位移，同样关停 */
   button:not(:disabled):active{transform:none}
 }
@@ -1680,7 +1710,7 @@ body.real-desktop .pin-bar em{opacity:.9}
   </div>
 </aside>
 
-<div class="toast" id="toast" role="status" aria-live="polite"><span class="t-dot"></span><span id="toastMsg"></span></div>
+<div class="toast" id="toast" role="status" aria-live="polite"><span class="t-dot"></span><span id="toastMsg"></span><i id="toastBar"></i></div>
 <div class="ctx" id="ctx"></div>
 
 <div class="onboard" id="onboard">
@@ -1998,6 +2028,25 @@ function applyTheme(id){
   /* 原生控件的深浅（R12）：下拉、输入框、滚动条的原生部件跟 color-scheme 走 ——
      深色主题里弹出的白色原生下拉是最后一处"藏不住的亮块"。 */
   set('color-scheme', dk ? 'dark' : 'light');
+}
+
+/* 主题切换转场（R16）：支持 View Transitions 的浏览器（Electron 32 / Chromium 128+）
+   走"圆形揭示"—— 新主题从触发点一圈荡开。**只有给了触发坐标的调用才转场**
+   （坐标只可能来自用户点击）；定时任务、系统监听、探针这些程序化切换
+   走同步路径 —— 转场回调是异步的，"切完立即读值"的调用方（probe28
+   逐主题量对比度）会读到半新半旧的状态，这是 R16 首版踩过的真回归。
+   不支持 VT 或用户偏好减少动效时同样走同步，零降级感。 */
+function applyThemeFx(id, paint, x, y){
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (x != null && document.startViewTransition && !reduce){
+    const r = document.documentElement.style;
+    r.setProperty('--vt-x', Math.round(x) + 'px');
+    r.setProperty('--vt-y', Math.round(y) + 'px');
+    document.startViewTransition(() => { applyTheme(id); if (paint) paint(); });
+    return;
+  }
+  applyTheme(id);
+  if (paint) paint();
 }
 
 /* 夜间自动水墨（R9）：nightAuto 开着时，19:00–06:00 用「水墨」，
@@ -2901,6 +2950,10 @@ const toast = (function(){
   return function(msg){
     $('toastMsg').textContent = msg;
     $('toast').classList.add('show');
+    /* 进度条（R17）：重置动画再放一遍 —— 连续 toast 时倒计时从零开始，
+       不能接着上一次的进度走。 */
+    const bar = $('toastBar');
+    if (bar){ bar.style.animation = 'none'; void bar.offsetWidth; bar.style.animation = ''; }
     clearTimeout(t);
     t = setTimeout(function(){ $('toast').classList.remove('show'); }, 2400);
   };
@@ -5630,7 +5683,19 @@ function renderMd(src){
   const inl = s => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   let out = '', code = false, ul = false;
   String(src).split('\n').forEach(ln => {
-    if (/^```/.test(ln)){ if (code){ out += '</code></pre>'; code = false; } else { out += '<pre class="md-pre"><button class="md-cp" data-act="md-copy" title="复制这段代码">' + IC('copy', 12) + '</button><code>'; code = true; } return; }
+    if (/^```/.test(ln)){
+      if (code){ out += '</code></pre>'; code = false; }
+      else {
+        /* 语言标签（R15）：```js 里的 js 显示在块左上角 —— 读代码的人
+           第一眼想知道"这是哪种语言"。语言名截 12 字，防长串撑爆。 */
+        const lang = ln.replace(/^```/, '').trim().slice(0, 12);
+        out += '<pre class="md-pre' + (lang ? ' md-pre-lang' : '') + '">'
+          + (lang ? '<span class="md-lang">' + esc(lang) + '</span>' : '')
+          + '<button class="md-cp" data-act="md-copy" title="复制这段代码">' + IC('copy', 12) + '</button><code>';
+        code = true;
+      }
+      return;
+    }
     if (code){ out += esc(ln) + '\n'; return; }
     if (/^#{1,2}\s/.test(ln)){
       const lv = ln.indexOf('##') === 0 ? 2 : 1;
@@ -6741,9 +6806,10 @@ function setSetting(key, val){
     /* 关掉的瞬间就回到用户选的主题 —— "关开关"这个动作本身就是一次
        明确的主题决定，不该等到下一个整点。 */
     if (!val && CUR.id !== effThemeId()){
-      applyTheme(effThemeId());
-      invalidatePages(state.page);
-      renderPage(state.page, true);
+      applyThemeFx(effThemeId(), () => {
+        invalidatePages(state.page);
+        renderPage(state.page, true);
+      });
     }
     if (val && state.settings.followSystem){
       /* 互斥（R12）：夜间自动与跟随系统都是"自动换主题"，同开必然打架。
@@ -6764,9 +6830,10 @@ function setSetting(key, val){
       state.settings.nightAuto = false;
       saveSettings();
     }
-    applyTheme(effThemeId());
-    invalidatePages(state.page);
-    renderPage(state.page, true);
+    applyThemeFx(effThemeId(), () => {
+      invalidatePages(state.page);
+      renderPage(state.page, true);
+    });
     const dk = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
     toast(val ? ('跟随系统已开启 · 当前系统' + (dk ? '深色，已换上「曜夜」' : '浅色，用你选的主题'))
               : '跟随系统已关闭 · 已回到你选的主题');
@@ -6802,21 +6869,27 @@ function setSetting(key, val){
   if (state.page === 'settings') renderPage('settings', true);
   else invalidatePage('settings');
 }
-function setTheme(id){
+function setTheme(id, x, y){
   state.settings.theme = id;
-  applyTheme(id);
-  saveSettings();
-  renderThemePop();
-  /* 颜色是以内联 --cb 令牌写进每一页的，换主题必须重建 DOM；但只重建
-     当前页，其余页标记失效，切过去时再建。旧版一次重建全部 6 页。 */
-  invalidatePages(state.page);
-  renderPage(state.page, true);
-  renderRail();
-  updateFoot();
+  /* 转场（R16）：主题的全部视觉变更（含页面重建）都包进揭示回调 ——
+     旧帧/新帧快照才完整。吐司移到回调外：CUR 在回调里才更新，
+     提前读会拿到旧主题的名字。 */
+  applyThemeFx(id, () => {
+    applyTheme(id);
+    saveSettings();
+    renderThemePop();
+    /* 颜色是以内联 --cb 令牌写进每一页的，换主题必须重建 DOM；但只重建
+       当前页，其余页标记失效，切过去时再建。旧版一次重建全部 6 页。 */
+    invalidatePages(state.page);
+    renderPage(state.page, true);
+    renderRail();
+    updateFoot();
+  }, x, y);
+  const nm = (THEMES.find(t => t.id === id) || {}).name || id;
   if (state.settings.nightAuto && effThemeId() !== id)
-    toast('配色主题：' + CUR.name + ' · 夜间自动水墨开着，稍后会自动换回「水墨」');
+    toast('配色主题：' + nm + ' · 夜间自动水墨开着，稍后会自动换回「水墨」');
   else
-    toast('配色主题：' + CUR.name);
+    toast('配色主题：' + nm);
 }
 /* ---------------- 界面透明度 ----------------
    滑杆拖动时**不重建 DOM**：那几层 alpha 是变量，改一下就是实时的；
@@ -9684,7 +9757,7 @@ function activateSearchRow(el){
 $('panel').addEventListener('click', function(e){
   const t = e.target;
   const themeBtn = t.closest('[data-theme]');
-  if (themeBtn){ closeThemePop(); return setTheme(themeBtn.dataset.theme); }
+  if (themeBtn){ closeThemePop(); return setTheme(themeBtn.dataset.theme, e.clientX, e.clientY); }
   const act = t.closest('[data-act]');
   if (act){
     /* 搜索态下的正文只有结果条目。点行本身 = "执行这一条"（先退出搜索
@@ -10225,9 +10298,10 @@ function bindDesktop(){
       if (!state.settings.nightAuto) return;
       const id = effThemeId();
       if (CUR && id !== CUR.id){
-        applyTheme(id);
-        invalidatePages(state.page);
-        renderPage(state.page, true);
+        applyThemeFx(id, () => {
+          invalidatePages(state.page);
+          renderPage(state.page, true);
+        });
         toast(id === 'inkwash' ? '夜间模式 · 已自动换上「水墨」' : '天亮了 · 换回你选的主题');
       }
     }, 30 * 1000);
@@ -10239,9 +10313,10 @@ function bindDesktop(){
         if (!state.settings.followSystem) return;
         const id = effThemeId();
         if (CUR && id !== CUR.id){
-          applyTheme(id);
-          invalidatePages(state.page);
-          renderPage(state.page, true);
+          applyThemeFx(id, () => {
+            invalidatePages(state.page);
+            renderPage(state.page, true);
+          });
           toast(mq.matches ? '系统已切到深色 · 换上「曜夜」' : '系统已切到浅色 · 换回你选的主题');
         }
       };

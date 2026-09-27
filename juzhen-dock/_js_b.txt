@@ -260,6 +260,10 @@ const toast = (function(){
   return function(msg){
     $('toastMsg').textContent = msg;
     $('toast').classList.add('show');
+    /* 进度条（R17）：重置动画再放一遍 —— 连续 toast 时倒计时从零开始，
+       不能接着上一次的进度走。 */
+    const bar = $('toastBar');
+    if (bar){ bar.style.animation = 'none'; void bar.offsetWidth; bar.style.animation = ''; }
     clearTimeout(t);
     t = setTimeout(function(){ $('toast').classList.remove('show'); }, 2400);
   };

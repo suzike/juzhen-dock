@@ -648,7 +648,19 @@ function renderMd(src){
   const inl = s => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   let out = '', code = false, ul = false;
   String(src).split('\n').forEach(ln => {
-    if (/^```/.test(ln)){ if (code){ out += '</code></pre>'; code = false; } else { out += '<pre class="md-pre"><button class="md-cp" data-act="md-copy" title="复制这段代码">' + IC('copy', 12) + '</button><code>'; code = true; } return; }
+    if (/^```/.test(ln)){
+      if (code){ out += '</code></pre>'; code = false; }
+      else {
+        /* 语言标签（R15）：```js 里的 js 显示在块左上角 —— 读代码的人
+           第一眼想知道"这是哪种语言"。语言名截 12 字，防长串撑爆。 */
+        const lang = ln.replace(/^```/, '').trim().slice(0, 12);
+        out += '<pre class="md-pre' + (lang ? ' md-pre-lang' : '') + '">'
+          + (lang ? '<span class="md-lang">' + esc(lang) + '</span>' : '')
+          + '<button class="md-cp" data-act="md-copy" title="复制这段代码">' + IC('copy', 12) + '</button><code>';
+        code = true;
+      }
+      return;
+    }
     if (code){ out += esc(ln) + '\n'; return; }
     if (/^#{1,2}\s/.test(ln)){
       const lv = ln.indexOf('##') === 0 ? 2 : 1;
@@ -1759,9 +1771,10 @@ function setSetting(key, val){
     /* 关掉的瞬间就回到用户选的主题 —— "关开关"这个动作本身就是一次
        明确的主题决定，不该等到下一个整点。 */
     if (!val && CUR.id !== effThemeId()){
-      applyTheme(effThemeId());
-      invalidatePages(state.page);
-      renderPage(state.page, true);
+      applyThemeFx(effThemeId(), () => {
+        invalidatePages(state.page);
+        renderPage(state.page, true);
+      });
     }
     if (val && state.settings.followSystem){
       /* 互斥（R12）：夜间自动与跟随系统都是"自动换主题"，同开必然打架。
@@ -1782,9 +1795,10 @@ function setSetting(key, val){
       state.settings.nightAuto = false;
       saveSettings();
     }
-    applyTheme(effThemeId());
-    invalidatePages(state.page);
-    renderPage(state.page, true);
+    applyThemeFx(effThemeId(), () => {
+      invalidatePages(state.page);
+      renderPage(state.page, true);
+    });
     const dk = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
     toast(val ? ('跟随系统已开启 · 当前系统' + (dk ? '深色，已换上「曜夜」' : '浅色，用你选的主题'))
               : '跟随系统已关闭 · 已回到你选的主题');
@@ -1820,21 +1834,27 @@ function setSetting(key, val){
   if (state.page === 'settings') renderPage('settings', true);
   else invalidatePage('settings');
 }
-function setTheme(id){
+function setTheme(id, x, y){
   state.settings.theme = id;
-  applyTheme(id);
-  saveSettings();
-  renderThemePop();
-  /* 颜色是以内联 --cb 令牌写进每一页的，换主题必须重建 DOM；但只重建
-     当前页，其余页标记失效，切过去时再建。旧版一次重建全部 6 页。 */
-  invalidatePages(state.page);
-  renderPage(state.page, true);
-  renderRail();
-  updateFoot();
+  /* 转场（R16）：主题的全部视觉变更（含页面重建）都包进揭示回调 ——
+     旧帧/新帧快照才完整。吐司移到回调外：CUR 在回调里才更新，
+     提前读会拿到旧主题的名字。 */
+  applyThemeFx(id, () => {
+    applyTheme(id);
+    saveSettings();
+    renderThemePop();
+    /* 颜色是以内联 --cb 令牌写进每一页的，换主题必须重建 DOM；但只重建
+       当前页，其余页标记失效，切过去时再建。旧版一次重建全部 6 页。 */
+    invalidatePages(state.page);
+    renderPage(state.page, true);
+    renderRail();
+    updateFoot();
+  }, x, y);
+  const nm = (THEMES.find(t => t.id === id) || {}).name || id;
   if (state.settings.nightAuto && effThemeId() !== id)
-    toast('配色主题：' + CUR.name + ' · 夜间自动水墨开着，稍后会自动换回「水墨」');
+    toast('配色主题：' + nm + ' · 夜间自动水墨开着，稍后会自动换回「水墨」');
   else
-    toast('配色主题：' + CUR.name);
+    toast('配色主题：' + nm);
 }
 /* ---------------- 界面透明度 ----------------
    滑杆拖动时**不重建 DOM**：那几层 alpha 是变量，改一下就是实时的；
@@ -4702,7 +4722,7 @@ function activateSearchRow(el){
 $('panel').addEventListener('click', function(e){
   const t = e.target;
   const themeBtn = t.closest('[data-theme]');
-  if (themeBtn){ closeThemePop(); return setTheme(themeBtn.dataset.theme); }
+  if (themeBtn){ closeThemePop(); return setTheme(themeBtn.dataset.theme, e.clientX, e.clientY); }
   const act = t.closest('[data-act]');
   if (act){
     /* 搜索态下的正文只有结果条目。点行本身 = "执行这一条"（先退出搜索
@@ -5243,9 +5263,10 @@ function bindDesktop(){
       if (!state.settings.nightAuto) return;
       const id = effThemeId();
       if (CUR && id !== CUR.id){
-        applyTheme(id);
-        invalidatePages(state.page);
-        renderPage(state.page, true);
+        applyThemeFx(id, () => {
+          invalidatePages(state.page);
+          renderPage(state.page, true);
+        });
         toast(id === 'inkwash' ? '夜间模式 · 已自动换上「水墨」' : '天亮了 · 换回你选的主题');
       }
     }, 30 * 1000);
@@ -5257,9 +5278,10 @@ function bindDesktop(){
         if (!state.settings.followSystem) return;
         const id = effThemeId();
         if (CUR && id !== CUR.id){
-          applyTheme(id);
-          invalidatePages(state.page);
-          renderPage(state.page, true);
+          applyThemeFx(id, () => {
+            invalidatePages(state.page);
+            renderPage(state.page, true);
+          });
           toast(mq.matches ? '系统已切到深色 · 换上「曜夜」' : '系统已切到浅色 · 换回你选的主题');
         }
       };
