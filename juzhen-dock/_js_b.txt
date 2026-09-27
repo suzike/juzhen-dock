@@ -243,13 +243,13 @@ const stg = () => (state.query ? '' : ' data-stagger');
    结构：图标 + 主句 + 提示 + 可选动作按钮（act 传 {act,icon,label}，
    动作名必须是 handleAct 里真实存在的分支 —— 有按钮就要有反应）。
    老调用 emptyBox('主句\n提示') 完全兼容。 */
-const emptyBox = (t, act) => {
+const emptyBox = (t, act, icon) => {
   const ls = String(t).split('\n');
   const btn = act
     ? '<div class="empty-a"><button class="mini pri" data-act="' + esc(act.act) + '">'
       + IC(act.icon || 'plus', 13) + esc(act.label || '现在就加一条') + '</button></div>'
     : '';
-  return '<div class="empty-hint"><div class="empty-ico">' + IC('tray', 20) + '</div>'
+  return '<div class="empty-hint"><div class="empty-ico">' + IC(icon || 'tray', 20) + '</div>'
     + '<div class="empty-t">' + esc(ls[0]) + '</div>'
     + (ls[1] ? '<div class="empty-s">' + esc(ls[1]) + '</div>' : '')
     + btn + '</div>';
@@ -473,7 +473,7 @@ function buildFolders(){
   const addRow = '<div class="acts-row"><button data-act="folder-new">'
     + IC('plus', 14) + '新增文件夹</button></div>';
   if (!list.length) return html + emptyBox('还没有文件夹入口\n加一个常去的项目目录',
-    { act:'folder-new', icon:'plus', label:'登记第一个目录' }) + addRow;
+    { act:'folder-new', icon:'folder', label:'登记第一个目录' }, 'folder') + addRow;
   html += groups.map(g => {
     const cards = g.items.map(f =>
       '<div class="row" data-kind="folder" data-path="' + esc(f.path) + '"'
@@ -504,7 +504,7 @@ function buildLinks(){
   const addRow = '<div class="acts-row"><button data-act="link-new">'
     + IC('plus', 14) + '新增网址</button></div>';
   if (!list.length) return html + emptyBox('还没有网址入口\n加一个常去的平台或文档站',
-    { act:'link-new', icon:'plus', label:'登记第一个网址' }) + addRow;
+    { act:'link-new', icon:'globe', label:'登记第一个网址' }, 'globe') + addRow;
   html += groups.map(g => {
     const cards = g.items.map(l =>
       '<div class="row" data-kind="link" data-url="' + esc(l.url) + '" data-host="' + esc(l.host) + '"'

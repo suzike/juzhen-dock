@@ -269,8 +269,8 @@ function buildToday(){
     + '</svg><div class="td-ring-t"><div class="td-ring-n">'
     + (pct >= 0 ? pct + '%' : '—') + '</div><div class="td-ring-l">已完成</div></div></div>'
     + '<div class="td-hero-r">'
-    + statCell('待办剩余', undone, 'check', ACC[0])
-    + statCell('剪切记录', DATA.board.length, 'board', ACC[4])
+    + statCell('待办剩余', undone, 'check', ACC[0], 'undone')
+    + statCell('剪切记录', DATA.board.length, 'board', ACC[4], 'board')
     + '</div></div>';
 
   /* 快捷加待办（R6）：想到就记一条，不用开表单 —— 标签/时间走默认
@@ -315,11 +315,17 @@ function buildToday(){
   html += '<div class="td-tip">' + IC('sparkle', 15)
     + '<span>唤出后点侧栏第一项「今日」就能看到待办与最近文件，'
     + '当前场景显示在顶部，切换场景只需一次点击。</span></div>';
+  /* 数字滚动（R22）：页面插进 DOM 后再启动 —— 计数从上次的值滚到这次的值。 */
+  requestAnimationFrame(() => {
+    if (state.page !== 'today') return;
+    $$('[data-cu]').forEach(el => countUp(el, el.dataset.cu, +el.textContent));
+  });
   return html;
 }
-function statCell(label, n, icon, c){
+function statCell(label, n, icon, c, cuKey){
+  const cu = cuKey ? ' data-cu="' + cuKey + '"' : '';
   return '<div class="td-cell" style="' + vars(c) + '"><span class="td-cico">' + IC(icon, 15) + '</span>'
-    + '<span class="td-cn">' + n + '</span><span class="td-cl">' + esc(label) + '</span></div>';
+    + '<span class="td-cn"' + cu + '>' + n + '</span><span class="td-cl">' + esc(label) + '</span></div>';
 }
 /* 时段问候（R6）：首页每次唤出都该像"现在"而不是像昨天截的图。 */
 function todGreet(){
@@ -366,7 +372,7 @@ function buildScene(){
   const addRow = '<div class="acts-row"><button data-act="scene-new">'
     + IC('plus', 14) + '新建场景</button></div>';
   if (!TOOL.scenes.length)
-    return html + emptyBox('还没有场景\n建一个，把一组常用目录打包进去') + addRow;
+    return html + emptyBox('还没有场景\n建一个，把一组常用目录打包进去', null, 'route') + addRow;
 
   /* 上一次执行的结果。toast 只来得及说一句话，而"哪个动作没成、为什么"
      应该留在页面上 —— 否则用户只能靠反复点来猜。 */
@@ -617,7 +623,7 @@ function buildNote(){
     + '<div class="note-add-f"><span class="hint">支持纯文本，自动按日期分组</span>'
     + '<button class="nb" data-act="note-save">' + IC('plus', 13) + '记下</button></div></div>';
 
-  if (!TOOL.notes.length) return html + emptyBox('还没有速记\n在上方写点什么试试');
+  if (!TOOL.notes.length) return html + emptyBox('还没有速记\n在上方写点什么试试', null, 'note');
 
   /* 标签筛选（R8）：标签从数据里现长出来（写死名单会跟用户自起的标签
      走散）。筛选是视图状态，不落盘。 */
@@ -676,7 +682,7 @@ function buildShot(){
   if (!TOOL.shots.length) return html + emptyBox(DESK
     ? '还没有贴图\nWin+Shift+S 截图后点下面这颗按钮'
     : '还没有贴图\n截图后点这里钉住',
-    DESK ? { act:'shot-paste', icon:'camera', label:'钉住剪切板里的图' } : undefined);
+    DESK ? { act:'shot-paste', icon:'camera', label:'钉住剪切板里的图' } : undefined, 'camera');
 
   const cards = TOOL.shots.map((s, i) => {
     const pinned = DESK && PINNED.has(s.id);

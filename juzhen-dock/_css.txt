@@ -1130,6 +1130,14 @@ html.glass-drag,html.glass-drag *,html.glass-drag *::before,html.glass-drag *::a
   margin-left:3px;border-radius:2px;background:var(--cb);vertical-align:-1px;
   animation:caret 900ms steps(2, jump-none) infinite}
 @keyframes caret{0%,49%{opacity:.95}50%,100%{opacity:.2}}
+/* ---------- 快捷键帮助（R21） ----------
+   kbd 沿搜索框那套键帽语言；左键帽右说明，两列对齐读起来像说明书。 */
+.sc-groups{display:flex;flex-direction:column;gap:var(--sp-3);margin:var(--sp-2) 0 var(--sp-3)}
+.sc-gt{font-size:var(--fs-micro);font-weight:var(--fw-bold);color:var(--ink-4);letter-spacing:.08em;margin-bottom:4px}
+.sc-r{display:flex;align-items:center;gap:var(--sp-3);padding:5px 0;font-size:var(--fs-body);color:var(--ink-2)}
+.sc-r kbd{flex:none;min-width:96px;text-align:center;font-size:var(--fs-micro);font-weight:var(--fw-semi);
+  color:var(--ink-2);background:var(--paper-3);border-radius:6px;padding:4px 8px;
+  box-shadow:inset 0 -1.5px 0 var(--line-2);font-family:var(--mono)}
 /* ---------- 主题切换转场（R16） ----------
    View Transitions：新主题从触发点一圈荡开（--vt-x/--vt-y 由
    applyThemeFx 注入；定时任务没有触发点，回落面板中心）。

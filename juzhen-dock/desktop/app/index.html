@@ -1137,6 +1137,14 @@ html.glass-drag,html.glass-drag *,html.glass-drag *::before,html.glass-drag *::a
   margin-left:3px;border-radius:2px;background:var(--cb);vertical-align:-1px;
   animation:caret 900ms steps(2, jump-none) infinite}
 @keyframes caret{0%,49%{opacity:.95}50%,100%{opacity:.2}}
+/* ---------- 快捷键帮助（R21） ----------
+   kbd 沿搜索框那套键帽语言；左键帽右说明，两列对齐读起来像说明书。 */
+.sc-groups{display:flex;flex-direction:column;gap:var(--sp-3);margin:var(--sp-2) 0 var(--sp-3)}
+.sc-gt{font-size:var(--fs-micro);font-weight:var(--fw-bold);color:var(--ink-4);letter-spacing:.08em;margin-bottom:4px}
+.sc-r{display:flex;align-items:center;gap:var(--sp-3);padding:5px 0;font-size:var(--fs-body);color:var(--ink-2)}
+.sc-r kbd{flex:none;min-width:96px;text-align:center;font-size:var(--fs-micro);font-weight:var(--fw-semi);
+  color:var(--ink-2);background:var(--paper-3);border-radius:6px;padding:4px 8px;
+  box-shadow:inset 0 -1.5px 0 var(--line-2);font-family:var(--mono)}
 /* ---------- 主题切换转场（R16） ----------
    View Transitions：新主题从触发点一圈荡开（--vt-x/--vt-y 由
    applyThemeFx 注入；定时任务没有触发点，回落面板中心）。
@@ -2939,13 +2947,13 @@ const stg = () => (state.query ? '' : ' data-stagger');
    结构：图标 + 主句 + 提示 + 可选动作按钮（act 传 {act,icon,label}，
    动作名必须是 handleAct 里真实存在的分支 —— 有按钮就要有反应）。
    老调用 emptyBox('主句\n提示') 完全兼容。 */
-const emptyBox = (t, act) => {
+const emptyBox = (t, act, icon) => {
   const ls = String(t).split('\n');
   const btn = act
     ? '<div class="empty-a"><button class="mini pri" data-act="' + esc(act.act) + '">'
       + IC(act.icon || 'plus', 13) + esc(act.label || '现在就加一条') + '</button></div>'
     : '';
-  return '<div class="empty-hint"><div class="empty-ico">' + IC('tray', 20) + '</div>'
+  return '<div class="empty-hint"><div class="empty-ico">' + IC(icon || 'tray', 20) + '</div>'
     + '<div class="empty-t">' + esc(ls[0]) + '</div>'
     + (ls[1] ? '<div class="empty-s">' + esc(ls[1]) + '</div>' : '')
     + btn + '</div>';
@@ -3169,7 +3177,7 @@ function buildFolders(){
   const addRow = '<div class="acts-row"><button data-act="folder-new">'
     + IC('plus', 14) + '新增文件夹</button></div>';
   if (!list.length) return html + emptyBox('还没有文件夹入口\n加一个常去的项目目录',
-    { act:'folder-new', icon:'plus', label:'登记第一个目录' }) + addRow;
+    { act:'folder-new', icon:'folder', label:'登记第一个目录' }, 'folder') + addRow;
   html += groups.map(g => {
     const cards = g.items.map(f =>
       '<div class="row" data-kind="folder" data-path="' + esc(f.path) + '"'
@@ -3200,7 +3208,7 @@ function buildLinks(){
   const addRow = '<div class="acts-row"><button data-act="link-new">'
     + IC('plus', 14) + '新增网址</button></div>';
   if (!list.length) return html + emptyBox('还没有网址入口\n加一个常去的平台或文档站',
-    { act:'link-new', icon:'plus', label:'登记第一个网址' }) + addRow;
+    { act:'link-new', icon:'globe', label:'登记第一个网址' }, 'globe') + addRow;
   html += groups.map(g => {
     const cards = g.items.map(l =>
       '<div class="row" data-kind="link" data-url="' + esc(l.url) + '" data-host="' + esc(l.host) + '"'
@@ -3593,8 +3601,8 @@ function buildToday(){
     + '</svg><div class="td-ring-t"><div class="td-ring-n">'
     + (pct >= 0 ? pct + '%' : '—') + '</div><div class="td-ring-l">已完成</div></div></div>'
     + '<div class="td-hero-r">'
-    + statCell('待办剩余', undone, 'check', ACC[0])
-    + statCell('剪切记录', DATA.board.length, 'board', ACC[4])
+    + statCell('待办剩余', undone, 'check', ACC[0], 'undone')
+    + statCell('剪切记录', DATA.board.length, 'board', ACC[4], 'board')
     + '</div></div>';
 
   /* 快捷加待办（R6）：想到就记一条，不用开表单 —— 标签/时间走默认
@@ -3639,11 +3647,17 @@ function buildToday(){
   html += '<div class="td-tip">' + IC('sparkle', 15)
     + '<span>唤出后点侧栏第一项「今日」就能看到待办与最近文件，'
     + '当前场景显示在顶部，切换场景只需一次点击。</span></div>';
+  /* 数字滚动（R22）：页面插进 DOM 后再启动 —— 计数从上次的值滚到这次的值。 */
+  requestAnimationFrame(() => {
+    if (state.page !== 'today') return;
+    $$('[data-cu]').forEach(el => countUp(el, el.dataset.cu, +el.textContent));
+  });
   return html;
 }
-function statCell(label, n, icon, c){
+function statCell(label, n, icon, c, cuKey){
+  const cu = cuKey ? ' data-cu="' + cuKey + '"' : '';
   return '<div class="td-cell" style="' + vars(c) + '"><span class="td-cico">' + IC(icon, 15) + '</span>'
-    + '<span class="td-cn">' + n + '</span><span class="td-cl">' + esc(label) + '</span></div>';
+    + '<span class="td-cn"' + cu + '>' + n + '</span><span class="td-cl">' + esc(label) + '</span></div>';
 }
 /* 时段问候（R6）：首页每次唤出都该像"现在"而不是像昨天截的图。 */
 function todGreet(){
@@ -3690,7 +3704,7 @@ function buildScene(){
   const addRow = '<div class="acts-row"><button data-act="scene-new">'
     + IC('plus', 14) + '新建场景</button></div>';
   if (!TOOL.scenes.length)
-    return html + emptyBox('还没有场景\n建一个，把一组常用目录打包进去') + addRow;
+    return html + emptyBox('还没有场景\n建一个，把一组常用目录打包进去', null, 'route') + addRow;
 
   /* 上一次执行的结果。toast 只来得及说一句话，而"哪个动作没成、为什么"
      应该留在页面上 —— 否则用户只能靠反复点来猜。 */
@@ -3941,7 +3955,7 @@ function buildNote(){
     + '<div class="note-add-f"><span class="hint">支持纯文本，自动按日期分组</span>'
     + '<button class="nb" data-act="note-save">' + IC('plus', 13) + '记下</button></div></div>';
 
-  if (!TOOL.notes.length) return html + emptyBox('还没有速记\n在上方写点什么试试');
+  if (!TOOL.notes.length) return html + emptyBox('还没有速记\n在上方写点什么试试', null, 'note');
 
   /* 标签筛选（R8）：标签从数据里现长出来（写死名单会跟用户自起的标签
      走散）。筛选是视图状态，不落盘。 */
@@ -4000,7 +4014,7 @@ function buildShot(){
   if (!TOOL.shots.length) return html + emptyBox(DESK
     ? '还没有贴图\nWin+Shift+S 截图后点下面这颗按钮'
     : '还没有贴图\n截图后点这里钉住',
-    DESK ? { act:'shot-paste', icon:'camera', label:'钉住剪切板里的图' } : undefined);
+    DESK ? { act:'shot-paste', icon:'camera', label:'钉住剪切板里的图' } : undefined, 'camera');
 
   const cards = TOOL.shots.map((s, i) => {
     const pinned = DESK && PINNED.has(s.id);
@@ -5877,6 +5891,7 @@ const CMD_ACTIONS = [
   { act:'ask-sess-new', nm:'新开速问会话', hs:'一段新对话，独立档位与知识库选择', icon:'bot', kw:'会话 速问 新建 对话 ai session' },
   { act:'go', id:'shot',  nm:'打开贴图钉屏', hs:'把参考图钉在桌面最上层',     icon:'camera',   kw:'贴图 贴图钉屏 截图 钉 pin' },
   { act:'cmd-night',    nm:'切换夜间自动水墨', hs:'19:00–06:00 自动用「水墨」；开着时再点即关', icon:'moon', kw:'夜间 夜 自动 水墨 深色 晚 night' },
+  { act:'cmd-keys',     nm:'查看快捷键',     hs:'全部键位一屏看全（也可按 ?）', icon:'info',   kw:'快捷键 帮助 键盘 shortcut help keys' },
   { act:'cmd-theme',    nm:'换个配色主题', hs:'含两套曜黑深色（曜夜 / 流萤）', icon:'palette', kw:'主题 配色 深色 暗色 曜夜 流萤 theme dark' }
 ];
 const CMD_FIND = a => a.act + (a.id ? ':' + a.id : '');
@@ -7503,6 +7518,66 @@ function askText(title, defVal, ph){
 /* ---------------- 只问一句"要不要" ----------------
    和 askText 同源：Electron 里 window.confirm 同样不可用，凡是要用户
    点一下头的地方都得自己画。消息里允许换行（命令清单要原样摆出来看）。 */
+/* 数字滚动（R22）：统计值变化时从上次的数滚到这次的数 ——
+   变化被"看见"才像活的。首次渲染与数值不变时不演；
+   减少动效（prefers-reduced-motion）下直接落定。 */
+function countUp(el, key, to){
+  state._cu = state._cu || {};
+  const has = key in state._cu;
+  const from = state._cu[key] || 0;
+  state._cu[key] = to;
+  el.textContent = to;
+  if (!has || from === to) return;
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const t0 = performance.now(), D = 560;
+  const step = now => {
+    const k = Math.min(1, (now - t0) / D), e = 1 - Math.pow(1 - k, 3);
+    el.textContent = Math.round(from + (to - from) * e);
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+/* 快捷键帮助（R21）：好快捷键藏得住人 —— `?` 一按全在这。
+   只读不改的纯展示浮层，走 askConfirm 同一套 minip 生命周期。 */
+function showShortcuts(){
+  const wrap = document.createElement('div');
+  wrap.className = 'minip';
+  wrap.innerHTML = '<div class="mp-card"><div class="mp-t">快捷键</div>'
+    + '<div class="sc-groups">'
+    + scGroup('全局', [
+        ['Alt + Space', '唤出 / 收起面板'],
+        ['Ctrl + Alt + J', '备用唤起'],
+        ['鼠标贴右缘', '停留片刻滑出面板']])
+    + scGroup('面板内', [
+        ['Ctrl + K', '搜索全部板块（含动作）'],
+        ['↑ / ↓ + Enter', '搜索结果选择与执行'],
+        ['Esc', '退一层：搜索 → 预览 → 主题弹层 → 菜单 → 收起'],
+        ['Ctrl + Enter', '速记保存 / 速问发送'],
+        ['?', '本帮助']])
+    + '</div>'
+    + '<div class="mp-r"><button class="mp-b pri" data-r="0">知道了</button></div></div>';
+  document.body.appendChild(wrap);
+  requestAnimationFrame(() => wrap.classList.add('show'));
+  let closed = false;
+  const done = () => {
+    if (closed) return;
+    closed = true;
+    wrap.classList.remove('show');
+    wrap.classList.add('closing');
+    setTimeout(() => wrap.remove(), 280);
+  };
+  wrap.querySelector('[data-r="0"]').addEventListener('click', done);
+  wrap.addEventListener('click', e => { if (e.target === wrap) done(); });
+  wrap.addEventListener('keydown', e => { if (e.key === 'Escape' || e.key === 'Enter'){ e.stopPropagation(); done(); } });
+  setTimeout(() => wrap.querySelector('[data-r="0"]').focus(), 60);
+}
+function scGroup(title, rows){
+  return '<div class="sc-g"><div class="sc-gt">' + esc(title) + '</div>'
+    + rows.map(r => '<div class="sc-r"><kbd>' + esc(r[0]) + '</kbd>'
+      + '<span>' + esc(r[1]) + '</span></div>').join('') + '</div>';
+}
+
 function askConfirm(title, msg, okLabel, danger){
   return new Promise(resolve => {
     const wrap = document.createElement('div');
@@ -8722,15 +8797,19 @@ function handleAct(el){
     const key = String(el.dataset.cmd || '');
     const a = CMD_ACTIONS.find(x => CMD_FIND(x) === key);
     if (!a) return;
-    if (a.act === 'cmd-theme'){
-      /* 主题按钮是独立监听（btnTheme，非 data-act）——替用户点它 */
-      if ($('btnTheme')) $('btnTheme').click();
-      return;
-    }
     if (a.act === 'cmd-night'){
       /* 开关型动作：setSetting 自带吐司与主题切换（走 R16 转场），
          这里只负责把"当前是什么状态"翻过去。 */
       setSetting('nightAuto', !state.settings.nightAuto);
+      return;
+    }
+    if (a.act === 'cmd-keys'){
+      showShortcuts();
+      return;
+    }
+    if (a.act === 'cmd-theme'){
+      /* 主题按钮是独立监听（btnTheme，非 data-act）——替用户点它 */
+      if ($('btnTheme')) $('btnTheme').click();
       return;
     }
     const shim = document.createElement('div');
@@ -10099,6 +10178,13 @@ document.addEventListener('keydown', function(e){
   else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k'){
     e.preventDefault(); openPanel();
     setTimeout(() => { $('q').focus(); $('q').select(); }, 60);
+  } else if (e.key === '?'){
+    /* 快捷键帮助（R21）：? = Shift+/。打字的时候不抢 —— 输入框/文本域里
+       问号是正文。 */
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    e.preventDefault();
+    showShortcuts();
   } else if (e.key === 'Escape'){
     if (state.pvOpen) closePreview();
     else if ($('tpop').classList.contains('show')) closeThemePop();
@@ -10113,7 +10199,25 @@ $('pinBar').querySelector('button').addEventListener('click', function(){ toggle
 $('btnTheme').addEventListener('click', function(){
   const open = $('tpop').classList.contains('show');
   if (open) closeThemePop();
-  else { $('tpop').classList.add('show'); this.classList.add('on'); }
+  else {
+    $('tpop').classList.add('show'); this.classList.add('on');
+    /* 键盘用户（R21）：弹层一开，焦点落到当前主题上 —— 方向键直接换。 */
+    const on = $('tpop').querySelector('.tp-item.on');
+    if (document.activeElement === this && on) on.focus();
+  }
+});
+/* 主题弹层键盘导航（R21）：↑↓ 在主题间移动，Enter 触发（tp-item 本身是
+   button，聚焦后 Enter 原生点击），Esc 关弹层走 document 层的既有分支。 */
+$('tpop').addEventListener('keydown', function(e){
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+  const items = [].slice.call(this.querySelectorAll('.tp-item'));
+  if (!items.length) return;
+  const i = items.indexOf(document.activeElement);
+  e.preventDefault();
+  const n = i < 0 ? (e.key === 'ArrowDown' ? 0 : items.length - 1)
+    : Math.min(items.length - 1, Math.max(0, i + (e.key === 'ArrowDown' ? 1 : -1)));
+  if (i >= 0) items[i].blur();
+  items[n].focus();
 });
 $('btnRail').addEventListener('click', function(){
   const order = ['auto','labels','compact'];

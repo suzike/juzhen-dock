@@ -833,6 +833,7 @@ const CMD_ACTIONS = [
   { act:'ask-sess-new', nm:'新开速问会话', hs:'一段新对话，独立档位与知识库选择', icon:'bot', kw:'会话 速问 新建 对话 ai session' },
   { act:'go', id:'shot',  nm:'打开贴图钉屏', hs:'把参考图钉在桌面最上层',     icon:'camera',   kw:'贴图 贴图钉屏 截图 钉 pin' },
   { act:'cmd-night',    nm:'切换夜间自动水墨', hs:'19:00–06:00 自动用「水墨」；开着时再点即关', icon:'moon', kw:'夜间 夜 自动 水墨 深色 晚 night' },
+  { act:'cmd-keys',     nm:'查看快捷键',     hs:'全部键位一屏看全（也可按 ?）', icon:'info',   kw:'快捷键 帮助 键盘 shortcut help keys' },
   { act:'cmd-theme',    nm:'换个配色主题', hs:'含两套曜黑深色（曜夜 / 流萤）', icon:'palette', kw:'主题 配色 深色 暗色 曜夜 流萤 theme dark' }
 ];
 const CMD_FIND = a => a.act + (a.id ? ':' + a.id : '');
@@ -2459,6 +2460,66 @@ function askText(title, defVal, ph){
 /* ---------------- 只问一句"要不要" ----------------
    和 askText 同源：Electron 里 window.confirm 同样不可用，凡是要用户
    点一下头的地方都得自己画。消息里允许换行（命令清单要原样摆出来看）。 */
+/* 数字滚动（R22）：统计值变化时从上次的数滚到这次的数 ——
+   变化被"看见"才像活的。首次渲染与数值不变时不演；
+   减少动效（prefers-reduced-motion）下直接落定。 */
+function countUp(el, key, to){
+  state._cu = state._cu || {};
+  const has = key in state._cu;
+  const from = state._cu[key] || 0;
+  state._cu[key] = to;
+  el.textContent = to;
+  if (!has || from === to) return;
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const t0 = performance.now(), D = 560;
+  const step = now => {
+    const k = Math.min(1, (now - t0) / D), e = 1 - Math.pow(1 - k, 3);
+    el.textContent = Math.round(from + (to - from) * e);
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+/* 快捷键帮助（R21）：好快捷键藏得住人 —— `?` 一按全在这。
+   只读不改的纯展示浮层，走 askConfirm 同一套 minip 生命周期。 */
+function showShortcuts(){
+  const wrap = document.createElement('div');
+  wrap.className = 'minip';
+  wrap.innerHTML = '<div class="mp-card"><div class="mp-t">快捷键</div>'
+    + '<div class="sc-groups">'
+    + scGroup('全局', [
+        ['Alt + Space', '唤出 / 收起面板'],
+        ['Ctrl + Alt + J', '备用唤起'],
+        ['鼠标贴右缘', '停留片刻滑出面板']])
+    + scGroup('面板内', [
+        ['Ctrl + K', '搜索全部板块（含动作）'],
+        ['↑ / ↓ + Enter', '搜索结果选择与执行'],
+        ['Esc', '退一层：搜索 → 预览 → 主题弹层 → 菜单 → 收起'],
+        ['Ctrl + Enter', '速记保存 / 速问发送'],
+        ['?', '本帮助']])
+    + '</div>'
+    + '<div class="mp-r"><button class="mp-b pri" data-r="0">知道了</button></div></div>';
+  document.body.appendChild(wrap);
+  requestAnimationFrame(() => wrap.classList.add('show'));
+  let closed = false;
+  const done = () => {
+    if (closed) return;
+    closed = true;
+    wrap.classList.remove('show');
+    wrap.classList.add('closing');
+    setTimeout(() => wrap.remove(), 280);
+  };
+  wrap.querySelector('[data-r="0"]').addEventListener('click', done);
+  wrap.addEventListener('click', e => { if (e.target === wrap) done(); });
+  wrap.addEventListener('keydown', e => { if (e.key === 'Escape' || e.key === 'Enter'){ e.stopPropagation(); done(); } });
+  setTimeout(() => wrap.querySelector('[data-r="0"]').focus(), 60);
+}
+function scGroup(title, rows){
+  return '<div class="sc-g"><div class="sc-gt">' + esc(title) + '</div>'
+    + rows.map(r => '<div class="sc-r"><kbd>' + esc(r[0]) + '</kbd>'
+      + '<span>' + esc(r[1]) + '</span></div>').join('') + '</div>';
+}
+
 function askConfirm(title, msg, okLabel, danger){
   return new Promise(resolve => {
     const wrap = document.createElement('div');
@@ -3678,15 +3739,19 @@ function handleAct(el){
     const key = String(el.dataset.cmd || '');
     const a = CMD_ACTIONS.find(x => CMD_FIND(x) === key);
     if (!a) return;
-    if (a.act === 'cmd-theme'){
-      /* 主题按钮是独立监听（btnTheme，非 data-act）——替用户点它 */
-      if ($('btnTheme')) $('btnTheme').click();
-      return;
-    }
     if (a.act === 'cmd-night'){
       /* 开关型动作：setSetting 自带吐司与主题切换（走 R16 转场），
          这里只负责把"当前是什么状态"翻过去。 */
       setSetting('nightAuto', !state.settings.nightAuto);
+      return;
+    }
+    if (a.act === 'cmd-keys'){
+      showShortcuts();
+      return;
+    }
+    if (a.act === 'cmd-theme'){
+      /* 主题按钮是独立监听（btnTheme，非 data-act）——替用户点它 */
+      if ($('btnTheme')) $('btnTheme').click();
       return;
     }
     const shim = document.createElement('div');
@@ -5055,6 +5120,13 @@ document.addEventListener('keydown', function(e){
   else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k'){
     e.preventDefault(); openPanel();
     setTimeout(() => { $('q').focus(); $('q').select(); }, 60);
+  } else if (e.key === '?'){
+    /* 快捷键帮助（R21）：? = Shift+/。打字的时候不抢 —— 输入框/文本域里
+       问号是正文。 */
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    e.preventDefault();
+    showShortcuts();
   } else if (e.key === 'Escape'){
     if (state.pvOpen) closePreview();
     else if ($('tpop').classList.contains('show')) closeThemePop();
@@ -5069,7 +5141,25 @@ $('pinBar').querySelector('button').addEventListener('click', function(){ toggle
 $('btnTheme').addEventListener('click', function(){
   const open = $('tpop').classList.contains('show');
   if (open) closeThemePop();
-  else { $('tpop').classList.add('show'); this.classList.add('on'); }
+  else {
+    $('tpop').classList.add('show'); this.classList.add('on');
+    /* 键盘用户（R21）：弹层一开，焦点落到当前主题上 —— 方向键直接换。 */
+    const on = $('tpop').querySelector('.tp-item.on');
+    if (document.activeElement === this && on) on.focus();
+  }
+});
+/* 主题弹层键盘导航（R21）：↑↓ 在主题间移动，Enter 触发（tp-item 本身是
+   button，聚焦后 Enter 原生点击），Esc 关弹层走 document 层的既有分支。 */
+$('tpop').addEventListener('keydown', function(e){
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+  const items = [].slice.call(this.querySelectorAll('.tp-item'));
+  if (!items.length) return;
+  const i = items.indexOf(document.activeElement);
+  e.preventDefault();
+  const n = i < 0 ? (e.key === 'ArrowDown' ? 0 : items.length - 1)
+    : Math.min(items.length - 1, Math.max(0, i + (e.key === 'ArrowDown' ? 1 : -1)));
+  if (i >= 0) items[i].blur();
+  items[n].focus();
 });
 $('btnRail').addEventListener('click', function(){
   const order = ['auto','labels','compact'];
