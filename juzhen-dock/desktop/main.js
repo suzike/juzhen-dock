@@ -755,7 +755,26 @@ function bind(){
      _aitest.js 起一个本地 mock 服务把所有分支真跑一遍（401 / 404 /
      空 choices / 连不上 / 超时）。写在这里的话，这几条路就只能靠
      "开窗口点一下、用肉眼看" 来验证，等于没验证。 */
-  ipcMain.handle('ai:chat', (_e, req) => AI.chatOnce(req));
+  /* 速问「停止」（R25）：主进程持有 controller——真正的 fetch 在这边，
+     渲染侧的 AbortSignal 过不了 IPC，只能传 stopToken 由主进程查表。
+     chatOnce 结束（无论成败/中止）都清表，不留悬挂引用。 */
+  const ASK_STOP = new Map();
+  ipcMain.handle('ai:chat', async (_e, req) => {
+    const token = req && req.stopToken;
+    if (!token) return AI.chatOnce(req);
+    const ctl = new AbortController();
+    ASK_STOP.set(token, ctl);
+    try {
+      return await AI.chatOnce(req, ctl.signal);
+    } finally {
+      ASK_STOP.delete(token);
+    }
+  });
+  ipcMain.handle('ai:stop', (_e, req) => {
+    const ctl = ASK_STOP.get(req && req.token);
+    if (ctl) ctl.abort();
+    return { ok: !!ctl };
+  });
 
   /* ---- 知识库：接入、检索、维护 ----
      全部走 invoke，因为它们**都有结果**：加了多少块、跳过了几个、

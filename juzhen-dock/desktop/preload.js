@@ -46,6 +46,7 @@ contextBridge.exposeInMainWorld('JZ', {
   /* AI 速问。放在主进程发：渲染侧直连要过 CORS（各家放行策略不一致），
      而且请求头里的 API Key 也就不必经过页面自身。 */
   aiChat: (req) => ipcRenderer.invoke('ai:chat', req),
+  aiStop: (token) => ipcRenderer.invoke('ai:stop', { token: token }),
   /* 单独试嵌入模型 / 列可用模型。设置页那两颗按钮走这里 ——
      "这个地址 + 这个模型名到底能不能出向量"只有真发一次请求才知道。 */
   aiEmbed:  (cfg, input) => ipcRenderer.invoke('llm:embed', { cfg: cfg, input: input }),

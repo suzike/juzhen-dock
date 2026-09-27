@@ -424,6 +424,10 @@ function gcard(name, n, body, opt){
   const o = opt || {};
   const c = o.color || colorFor(name);
   const cls = 'gcard-b' + (o.one ? ' one' : '') + (o.grid ? ' ' + o.grid : '');
+  /* 拖拽排序容器（R24）：opt.dragsort 传一个键名，卡身挂 data-dragsort，
+     组内条目挂 data-dsid —— 全站统一的拖拽重排协议在 _js_c 的
+     dragstart/dragover/drop 三条委托里，落库回调登记在 DRAG_CB[键]。 */
+  const dsort = o.dragsort ? '" data-dragsort="' + esc(o.dragsort) : '';
   /* 分组头右侧那个「+」：往**当前这一个分组里**加一条。
      起因是"分组"只做了归类，没有做归入 —— 文件夹按父目录自动分成了
      Thermal / Calibration / Docs 几组，但整页只有一个"新增文件夹"，
@@ -448,7 +452,7 @@ function gcard(name, n, body, opt){
        + '<span class="gcard-nm">' + esc(name) + '</span>'
        + (o.hideN ? '' : '<span class="gcard-n">' + n + ' 项</span>')
        + add
-       + '</div><div class="' + cls + '">' + body + '</div></section>';
+       + '</div><div class="' + cls + dsort + '">' + body + '</div></section>';
 }
 function groupBy(items, keyFn){
   const m = new Map();
@@ -509,7 +513,10 @@ function buildLinks(){
     const cards = g.items.map(l =>
       '<div class="row" data-kind="link" data-url="' + esc(l.url) + '" data-host="' + esc(l.host) + '"'
       + ' style="--i:' + Math.min(k++, 9) + '"' + stg() + '>'
-      + '<div class="ic">' + IC('globe', 17) + '</div>'
+      + '<div class="ic">'
+      + '<img class="fav" loading="lazy" data-fav data-host="' + esc(l.host) + '"'
+      + ' src="https://www.google.com/s2/favicons?sz=64&domain=' + esc(l.host) + '" alt="">'
+      + IC('globe', 17) + '</div>'
       + '<div class="tx"><div class="nm">' + esc(l.name) + '</div><div class="hs">' + esc(l.host) + '</div></div>'
       + '<button class="ctx-more" data-act="ctx-open" title="编辑 / 删除">' + IC('more', 13) + '</button>'
       + '</div>').join('');

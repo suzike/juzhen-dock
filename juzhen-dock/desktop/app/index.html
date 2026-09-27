@@ -133,6 +133,9 @@ em,i{font-style:normal}
 /* 键盘可达的可点卡片（R10）：tabindex 让 Tab 走得到它们，
    焦点环由全站 :focus-visible 统一画，这里只补指针暗示。 */
 .todo,.snip,.ncard,.shot,.row{cursor:pointer}
+.todo[data-dsid],.snip[data-dsid]{cursor:grab}
+.todo[data-dsid]:active{cursor:grabbing}
+.dragging{opacity:.4;transform:scale(.98) rotate(-1deg)}
 
 /* ==================== 桌面：单一纸面 + 一处极淡的暖斑 ====================
    原来是四团彩色光斑铺满整屏（g1..g4 各一个色相）外加 6 个彩色圆点装饰。
@@ -481,6 +484,20 @@ button:disabled:active{transform:none}
    和一个键盘选中态 —— 鼠标悬停与键盘选择共用同一套视觉。 */
 /* 搜索结果的来源标签：中性即可 —— 它的作用是"告诉你这条来自哪个板块"，
    不需要再上一次色；一屏十几条结果，每条一个彩标就成了别的花样。 */
+/* ---------- 真实站标 favicon（R26） ----------
+   img 加载成功就盖住兜底的 globe 图标；失败（离线/站标缺失）由
+   捕获阶段 error 委托加 .fav-err 隐藏 —— 图标显出来。三级降级：
+   站标 → 线条图标 → 文字。无网络时整条链路依然成立。 */
+/* 站标与兜底图标同位叠放：img 成功就盖住 svg，失败 fav-err 隐藏显出 svg。
+   首版把 .fav 当包装层、img 当内层——但 fav 就在 img 本体上，
+   ".fav img" 永远匹配不到（死选择器），成功时变成双图标并排。 */
+.ic{position:relative}
+.ic .fav,.lnk .fav{position:absolute;left:50%;top:50%;width:17px;height:17px;
+  margin:-8.5px 0 0 -8.5px;border-radius:4px;overflow:hidden;
+  background:var(--paper-3)}
+.lnk .fav{position:static;width:15px;height:15px;margin:0 6px 0 0;vertical-align:-2px}
+.fav-err{display:none!important}
+
 .sres .row .tg{flex:none;font-size:var(--fs-micro);font-weight:var(--fw-bold);color:var(--ink-3);
   background:var(--paper-3);border-radius:999px;padding:3px 9px;white-space:nowrap}
 .sres .row.sel{transform:translateY(-3px);box-shadow:0 14px 24px -12px rgba(43,33,25,.32),inset 0 0 0 1.5px var(--cb-brd)}
@@ -1160,6 +1177,8 @@ html.glass-drag,html.glass-drag *,html.glass-drag *::before,html.glass-drag *::a
 .qa-demo{flex:none;font-size:var(--fs-micro);font-weight:var(--fw-bold);color:var(--ink-3);background:var(--paper-3);
   border-radius:999px;padding:2px var(--sp-2);margin-top:1px}
 .qa-f{display:flex;gap:7px;align-items:center;margin-top:10px;padding-top:9px;border-top:1px solid var(--line)}
+/* 停止生成（R25）：只在 run 态出现，胭脂色示意"打断"——与失败同色系但更收敛 */
+.qa-stop{color:#B23A48;font-weight:var(--fw-semi)}
 .qa-f button{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px;
   border-radius:8px;font-size:var(--fs-micro);font-weight:var(--fw-semi);color:var(--ink-3);background:var(--paper-3);
   transition:all var(--dur-fast) var(--ease)}
@@ -3128,6 +3147,10 @@ function gcard(name, n, body, opt){
   const o = opt || {};
   const c = o.color || colorFor(name);
   const cls = 'gcard-b' + (o.one ? ' one' : '') + (o.grid ? ' ' + o.grid : '');
+  /* 拖拽排序容器（R24）：opt.dragsort 传一个键名，卡身挂 data-dragsort，
+     组内条目挂 data-dsid —— 全站统一的拖拽重排协议在 _js_c 的
+     dragstart/dragover/drop 三条委托里，落库回调登记在 DRAG_CB[键]。 */
+  const dsort = o.dragsort ? '" data-dragsort="' + esc(o.dragsort) : '';
   /* 分组头右侧那个「+」：往**当前这一个分组里**加一条。
      起因是"分组"只做了归类，没有做归入 —— 文件夹按父目录自动分成了
      Thermal / Calibration / Docs 几组，但整页只有一个"新增文件夹"，
@@ -3152,7 +3175,7 @@ function gcard(name, n, body, opt){
        + '<span class="gcard-nm">' + esc(name) + '</span>'
        + (o.hideN ? '' : '<span class="gcard-n">' + n + ' 项</span>')
        + add
-       + '</div><div class="' + cls + '">' + body + '</div></section>';
+       + '</div><div class="' + cls + dsort + '">' + body + '</div></section>';
 }
 function groupBy(items, keyFn){
   const m = new Map();
@@ -3213,7 +3236,10 @@ function buildLinks(){
     const cards = g.items.map(l =>
       '<div class="row" data-kind="link" data-url="' + esc(l.url) + '" data-host="' + esc(l.host) + '"'
       + ' style="--i:' + Math.min(k++, 9) + '"' + stg() + '>'
-      + '<div class="ic">' + IC('globe', 17) + '</div>'
+      + '<div class="ic">'
+      + '<img class="fav" loading="lazy" data-fav data-host="' + esc(l.host) + '"'
+      + ' src="https://www.google.com/s2/favicons?sz=64&domain=' + esc(l.host) + '" alt="">'
+      + IC('globe', 17) + '</div>'
       + '<div class="tx"><div class="nm">' + esc(l.name) + '</div><div class="hs">' + esc(l.host) + '</div></div>'
       + '<button class="ctx-more" data-act="ctx-open" title="编辑 / 删除">' + IC('more', 13) + '</button>'
       + '</div>').join('');
@@ -3616,7 +3642,7 @@ function buildToday(){
   const orderedTodos = [...TOOL.todos].sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0));
   const todoCards = orderedTodos.map((t, i) =>
     '<div class="todo' + (t.done ? ' done' : '') + '" data-act="todo-toggle" data-id="' + t.id + '"'
-    + ' data-kind="todo" tabindex="0" title="点击勾选 / 取消勾选"'
+    + ' data-kind="todo" data-dsid="' + t.id + '" draggable="true" tabindex="0" title="点击勾选 / 取消勾选 · 按住拖动排序"'
     + ' style="--i:' + Math.min(i, 9) + '"' + stg() + '>'
     + '<span class="td-ck">' + IC('check', 11) + '</span>'
     + '<span class="td-tx">' + esc(t.text) + '</span>'
@@ -3624,7 +3650,12 @@ function buildToday(){
     + '<span class="td-when">' + esc(t.when) + '</span>'
     + '<button class="ctx-more" data-act="ctx-open" title="编辑 / 删除">' + IC('more', 13) + '</button>'
     + '</div>').join('');
-  html += gcard('今日待办', TOOL.todos.length, todoCards, { icon:'check', one:true });
+  html += gcard('今日待办', TOOL.todos.length, todoCards, { icon:'check', one:true, dragsort:'todos' });
+  /* 拖拽排序（R24）：松手即按新顺序落盘。 */
+  DRAG_CB.todos = ids => {
+    TOOL.todos = applyGroupOrder(TOOL.todos, ids);
+    mark('todos');
+  };
   /* 待办以前只能打勾：不能加、不能改、不能删。这三样缺任何一样，
      这个列表都替不了任何东西 —— 用户迟早会退回记事本。 */
   html += '<div class="acts-row"><button data-act="todo-new">' + IC('plus', 14) + '新增待办</button></div>';
@@ -3635,7 +3666,7 @@ function buildToday(){
      挂 ⋯ 只为了"移除"一项：这条日志没有可改的东西，但没有删除入口时，
      误记进来的路径只能等被新记录挤掉。 */
   const recCards = TOOL.recent.map((r, i) =>
-    '<div class="row" data-kind="recent" data-path="' + esc(r.path) + '" tabindex="0"'
+    '<div class="row" data-kind="recent" data-path="' + esc(r.path) + '" tabindex="0" title="' + esc(r.path) + '"'
     + ' style="--i:' + Math.min(i, 9) + '"' + stg() + '>'
     + '<div class="ic">' + IC(r.kind === 'folder' ? 'folder'
         : (fileKind(r.name) === 'sheet' ? 'sheet' : 'file'), 17) + '</div>'
@@ -3798,7 +3829,7 @@ function buildSnip(){
     : '还没有收藏的片段\n点片段标题旁的 ★ 收起来，它们会聚在这一栏') + addRow;
 
   const card = (s, i) =>
-    '<div class="snip" data-act="snip-copy" data-id="' + s.id + '" data-kind="snip" tabindex="0"'
+    '<div class="snip" data-act="snip-copy" data-id="' + s.id + '" data-kind="snip" data-dsid="' + s.id + '" draggable="true" tabindex="0"'
     + ' title="点击复制（带 {{变量}} 的会先让你填）"'
     + ' style="--i:' + Math.min(i, 9) + '"' + stg() + '>'
     + '<div class="snip-h"><span class="snip-lang">' + esc(s.lang) + '</span>'
@@ -3822,10 +3853,14 @@ function buildSnip(){
     if (!items.length) return;
     html += gcard(g, items.length, items.map(s => card(s, k++)).join(''),
       { icon: g === '终端命令' ? 'terminal' : g === '文本模板' ? 'note' : 'code',
-        one:true,
+        one:true, dragsort:'snip:' + g,
         /* 分组名直接预填进表单 —— 片段的分组是数据里的一个字段，
            不像文件夹那样是派生的，所以这是真正意义上的"加进这一组"。 */
         addKind:'snip', addCtx:{ group:g } });
+      DRAG_CB['snip:' + g] = ids => {
+        TOOL.snips = applyGroupOrder(TOOL.snips, ids);
+        mark('snips');
+      };
   });
   return html + addRow;
 }
@@ -4192,7 +4227,11 @@ function askCard(a, i){
        不受影响：a.a 为空时 :empty 骨架照常。 */
     + (looksMd(a.a) ? renderMd(a.a) : esc(a.a)) + '</div>'
     + refs
-    + '<div class="qa-f"><button data-act="ask-to-note" data-id="' + esc(a.id) + '">' + IC('note', 13) + '存入速记</button>'
+    + '<div class="qa-f">'
+    + (a.state === 'run' && a.stopToken && DESK
+      ? '<button class="qa-stop" data-act="ask-stop" data-id="' + esc(a.id) + '">' + IC('x', 12) + '停止生成</button>' : '')
+    + '<button data-act="ask-to-snip" data-id="' + esc(a.id) + '">' + IC('code', 13) + '存为片段</button>'
+    + '<button data-act="ask-to-note" data-id="' + esc(a.id) + '">' + IC('note', 13) + '存入速记</button>'
     + '<button data-act="ask-copy" data-id="' + esc(a.id) + '">' + IC('copy', 13) + '复制回答</button>'
     + (a.state === 'err' ? '<button data-act="ask-retry" data-id="' + esc(a.id) + '">' + IC('swap', 13) + '重试</button>' : '')
     + '<span class="qa-m">' + esc(a.at || '') + (a.model ? ' · ' + esc(a.model) : '') + '</span>'
@@ -5157,7 +5196,10 @@ function buildBoard(){
     const c = typeColor(b.type);
     let body;
     if (b.type === 'link'){
-      body = '<div class="lnk">' + esc(b.text) + '</div>'
+      const bh = linkHost(b.text) || '';
+      body = '<div class="lnk">'
+        + (bh ? '<img class="fav" loading="lazy" data-fav src="https://www.google.com/s2/favicons?sz=64&domain=' + esc(bh) + '" alt="">' : '')
+        + esc(b.text) + '</div>'
            + '<div class="meta"><span>' + esc(linkHost(b.text) || '外部链接') + '</span><span class="sep"></span>'
            + '<span>' + b.text.length + ' 字符</span><span class="sep"></span><span>可收藏到收藏箱</span></div>';
     } else if (b.type === 'path'){
@@ -7538,6 +7580,19 @@ function countUp(el, key, to){
   requestAnimationFrame(step);
 }
 
+/* 拖拽排序（R24）：全站统一协议 ——
+   容器挂 data-dragsort="键"，条目挂 data-dsid="id" 且 draggable；
+   dragstart/dragover/drop 三条委托都在 #panel 上，落库回调查
+   DRAG_CB[键]（各构建器渲染时登记）。applyGroupOrder 把组内新顺序
+   写回数组：组外元素位置不动，组内元素按新序原位替换。 */
+const DRAG_CB = {};
+function applyGroupOrder(list, ids){
+  const set = new Set(ids);
+  const moved = ids.map(id => list.find(o => o.id === id));
+  let mi = 0;
+  return list.map(o => set.has(o.id) ? moved[mi++] : o);
+}
+
 /* 快捷键帮助（R21）：好快捷键藏得住人 —— `?` 一按全在这。
    只读不改的纯展示浮层，走 askConfirm 同一套 minip 生命周期。 */
 function showShortcuts(){
@@ -8785,6 +8840,22 @@ function handleAct(el){
     LS.drop(LS_QHIST);
     qHistRender();
     toast('搜索历史已清空');
+  } else if (act === 'ask-stop'){
+    /* 停止生成（R25）：按 token 叫停主进程里那条 fetch。
+       真正的状态改写走 abortedByUser 回路（askRunTurn 的分支），这里只负责喊停。 */
+    const a = TOOL.asks.find(x => x.id === id);
+    if (!a || !a.stopToken) return toast('这一条已经不在生成了');
+    JZ.aiStop(a.stopToken);
+  } else if (act === 'ask-to-snip'){
+    /* 回答存为片段（R25）：问答是流水、片段是资产 —— 好答案值得进片段库
+       长期复用。分组固定「AI 回答」，可用片段页的编辑改组。 */
+    const a = TOOL.asks.find(x => x.id === id);
+    if (!a || !String(a.a || '').trim()) return toast('这条还没有回答内容');
+    TOOL.snips.unshift({ id:'s' + uid(), g:'AI 回答', lang:'文本',
+      name:(a.q || 'AI 回答').slice(0, 24), text:(a.q ? 'Q: ' + a.q + '\n\n' : '') + 'A: ' + a.a,
+      vars:[], fav:false });
+    mark('snips'); refresh(['snip']);
+    toast('已存为片段 · 「AI 回答」分组');
   } else if (act === 'md-copy'){
     /* 代码块一键复制（R14）：按钮长在代码块右上角，复制时读块的纯文本 ——
        markdown 源码里的转义不该进剪切板。 */
@@ -9578,11 +9649,22 @@ async function askRunTurn(rec, sess){
     }
   }
   rec.refs = refs;
-  const r = await aiRequest(aiPayload(prompt, cfg, {
-    history:askHistory(rec, ASK_CTX_TURNS), mode:rec.mode, system:sys }));
+  /* 停止生成（R25）：token 是渲染侧与主进程 ASK_STOP 表之间的取货单。
+     AbortSignal 本体过不了 IPC，能过的只有这个字符串。 */
+  const stopToken = 'ask-' + uid();
+  rec.stopToken = stopToken;
+  const r = await aiRequest(Object.assign(aiPayload(prompt, cfg, {
+    history:askHistory(rec, ASK_CTX_TURNS), mode:rec.mode, system:sys }), { stopToken: stopToken }));
   if (r && r.ok){
     rec.a = prefix + (String(r.text).trim() || '（模型返回了空内容）');
     rec.state = 'ok';
+  } else if (r && r.abortedByUser){
+    /* 用户主动停止：不是错误——如实记一句，保留已收到的接地前缀 */
+    rec.state = '';
+    rec.a = prefix + '（已停止生成）';
+    mark('asks'); refresh(['ask']);
+    toast('已停止生成');
+    return;
   } else {
     rec.state = 'err';
     rec.a = prefix + aiErrText(r);
@@ -10059,6 +10141,8 @@ $('panel').addEventListener('change', function(e){
    error 事件不冒泡，必须挂在捕获阶段才接得到。换成"图片文件已不在"的
    占位并标灰 —— 不摆一张永远裂开的图标假装没事。 */
 document.addEventListener('error', function(e){
+  const fv = e.target && e.target.closest ? e.target.closest('[data-fav]') : null;
+  if (fv){ fv.classList.add('fav-err'); return; }
   const im = e.target && e.target.closest ? e.target.closest('[data-shot-img]') : null;
   if (!im) return;
   const box = im.parentNode;
@@ -10193,6 +10277,44 @@ document.addEventListener('keydown', function(e){
   }
 });
 $('scrim').addEventListener('click', closePanel);
+/* 拖拽排序委托（R24）：dragstart 记住被拖条目；dragover 实时把它
+   插到悬停条目的前/后（网格与单列通用：按悬停点落在目标哪一半算）；
+   drop 把容器内的 id 顺序交给登记好的回调落库。三条都在 #panel 上，
+   与点击委托互不干扰 —— 真拖动时浏览器不会派发 click。 */
+let dragEl = null;
+$('panel').addEventListener('dragstart', e => {
+  const it = e.target.closest('[data-dsid]');
+  if (!it || !it.closest('[data-dragsort]')) return;
+  dragEl = it;
+  it.classList.add("dragging");
+  e.dataTransfer.effectAllowed = 'move';
+  try { e.dataTransfer.setData('text/plain', it.dataset.dsid); } catch (err) {}
+});
+$('panel').addEventListener('dragover', e => {
+  if (!dragEl) return;
+  const zone = e.target.closest('[data-dragsort]');
+  if (!zone || !zone.contains(dragEl)) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const it = e.target.closest('[data-dsid]');
+  if (!it || it === dragEl) return;
+  const r = it.getBoundingClientRect();
+  const after = (e.clientY - r.top) > r.height / 2;
+  it.parentNode.insertBefore(dragEl, after ? it.nextSibling : it);
+});
+$('panel').addEventListener('drop', e => {
+  if (!dragEl) return;
+  e.preventDefault();
+  const zone = dragEl.closest('[data-dragsort]');
+  const ids = [].slice.call(zone.querySelectorAll('[data-dsid]')).map(x => x.dataset.dsid);
+  dragEl.classList.remove("dragging");
+  const cb = DRAG_CB[zone.dataset.dragsort];
+  dragEl = null;
+  if (cb) cb(ids);
+});
+$('panel').addEventListener('dragend', () => {
+  if (dragEl){ dragEl.classList.remove("dragging"); dragEl = null; }
+});
 $('btnClose').addEventListener('click', closePanel);
 $('btnPin').addEventListener('click', function(){ togglePin(); });
 $('pinBar').querySelector('button').addEventListener('click', function(){ togglePin(false); });

@@ -284,7 +284,7 @@ function buildToday(){
   const orderedTodos = [...TOOL.todos].sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0));
   const todoCards = orderedTodos.map((t, i) =>
     '<div class="todo' + (t.done ? ' done' : '') + '" data-act="todo-toggle" data-id="' + t.id + '"'
-    + ' data-kind="todo" tabindex="0" title="点击勾选 / 取消勾选"'
+    + ' data-kind="todo" data-dsid="' + t.id + '" draggable="true" tabindex="0" title="点击勾选 / 取消勾选 · 按住拖动排序"'
     + ' style="--i:' + Math.min(i, 9) + '"' + stg() + '>'
     + '<span class="td-ck">' + IC('check', 11) + '</span>'
     + '<span class="td-tx">' + esc(t.text) + '</span>'
@@ -292,7 +292,12 @@ function buildToday(){
     + '<span class="td-when">' + esc(t.when) + '</span>'
     + '<button class="ctx-more" data-act="ctx-open" title="编辑 / 删除">' + IC('more', 13) + '</button>'
     + '</div>').join('');
-  html += gcard('今日待办', TOOL.todos.length, todoCards, { icon:'check', one:true });
+  html += gcard('今日待办', TOOL.todos.length, todoCards, { icon:'check', one:true, dragsort:'todos' });
+  /* 拖拽排序（R24）：松手即按新顺序落盘。 */
+  DRAG_CB.todos = ids => {
+    TOOL.todos = applyGroupOrder(TOOL.todos, ids);
+    mark('todos');
+  };
   /* 待办以前只能打勾：不能加、不能改、不能删。这三样缺任何一样，
      这个列表都替不了任何东西 —— 用户迟早会退回记事本。 */
   html += '<div class="acts-row"><button data-act="todo-new">' + IC('plus', 14) + '新增待办</button></div>';
@@ -303,7 +308,7 @@ function buildToday(){
      挂 ⋯ 只为了"移除"一项：这条日志没有可改的东西，但没有删除入口时，
      误记进来的路径只能等被新记录挤掉。 */
   const recCards = TOOL.recent.map((r, i) =>
-    '<div class="row" data-kind="recent" data-path="' + esc(r.path) + '" tabindex="0"'
+    '<div class="row" data-kind="recent" data-path="' + esc(r.path) + '" tabindex="0" title="' + esc(r.path) + '"'
     + ' style="--i:' + Math.min(i, 9) + '"' + stg() + '>'
     + '<div class="ic">' + IC(r.kind === 'folder' ? 'folder'
         : (fileKind(r.name) === 'sheet' ? 'sheet' : 'file'), 17) + '</div>'
@@ -466,7 +471,7 @@ function buildSnip(){
     : '还没有收藏的片段\n点片段标题旁的 ★ 收起来，它们会聚在这一栏') + addRow;
 
   const card = (s, i) =>
-    '<div class="snip" data-act="snip-copy" data-id="' + s.id + '" data-kind="snip" tabindex="0"'
+    '<div class="snip" data-act="snip-copy" data-id="' + s.id + '" data-kind="snip" data-dsid="' + s.id + '" draggable="true" tabindex="0"'
     + ' title="点击复制（带 {{变量}} 的会先让你填）"'
     + ' style="--i:' + Math.min(i, 9) + '"' + stg() + '>'
     + '<div class="snip-h"><span class="snip-lang">' + esc(s.lang) + '</span>'
@@ -490,10 +495,14 @@ function buildSnip(){
     if (!items.length) return;
     html += gcard(g, items.length, items.map(s => card(s, k++)).join(''),
       { icon: g === '终端命令' ? 'terminal' : g === '文本模板' ? 'note' : 'code',
-        one:true,
+        one:true, dragsort:'snip:' + g,
         /* 分组名直接预填进表单 —— 片段的分组是数据里的一个字段，
            不像文件夹那样是派生的，所以这是真正意义上的"加进这一组"。 */
         addKind:'snip', addCtx:{ group:g } });
+      DRAG_CB['snip:' + g] = ids => {
+        TOOL.snips = applyGroupOrder(TOOL.snips, ids);
+        mark('snips');
+      };
   });
   return html + addRow;
 }
@@ -860,7 +869,11 @@ function askCard(a, i){
        不受影响：a.a 为空时 :empty 骨架照常。 */
     + (looksMd(a.a) ? renderMd(a.a) : esc(a.a)) + '</div>'
     + refs
-    + '<div class="qa-f"><button data-act="ask-to-note" data-id="' + esc(a.id) + '">' + IC('note', 13) + '存入速记</button>'
+    + '<div class="qa-f">'
+    + (a.state === 'run' && a.stopToken && DESK
+      ? '<button class="qa-stop" data-act="ask-stop" data-id="' + esc(a.id) + '">' + IC('x', 12) + '停止生成</button>' : '')
+    + '<button data-act="ask-to-snip" data-id="' + esc(a.id) + '">' + IC('code', 13) + '存为片段</button>'
+    + '<button data-act="ask-to-note" data-id="' + esc(a.id) + '">' + IC('note', 13) + '存入速记</button>'
     + '<button data-act="ask-copy" data-id="' + esc(a.id) + '">' + IC('copy', 13) + '复制回答</button>'
     + (a.state === 'err' ? '<button data-act="ask-retry" data-id="' + esc(a.id) + '">' + IC('swap', 13) + '重试</button>' : '')
     + '<span class="qa-m">' + esc(a.at || '') + (a.model ? ' · ' + esc(a.model) : '') + '</span>'

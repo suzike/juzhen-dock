@@ -99,7 +99,10 @@ function buildBoard(){
     const c = typeColor(b.type);
     let body;
     if (b.type === 'link'){
-      body = '<div class="lnk">' + esc(b.text) + '</div>'
+      const bh = linkHost(b.text) || '';
+      body = '<div class="lnk">'
+        + (bh ? '<img class="fav" loading="lazy" data-fav src="https://www.google.com/s2/favicons?sz=64&domain=' + esc(bh) + '" alt="">' : '')
+        + esc(b.text) + '</div>'
            + '<div class="meta"><span>' + esc(linkHost(b.text) || '外部链接') + '</span><span class="sep"></span>'
            + '<span>' + b.text.length + ' 字符</span><span class="sep"></span><span>可收藏到收藏箱</span></div>';
     } else if (b.type === 'path'){
@@ -2480,6 +2483,19 @@ function countUp(el, key, to){
   requestAnimationFrame(step);
 }
 
+/* 拖拽排序（R24）：全站统一协议 ——
+   容器挂 data-dragsort="键"，条目挂 data-dsid="id" 且 draggable；
+   dragstart/dragover/drop 三条委托都在 #panel 上，落库回调查
+   DRAG_CB[键]（各构建器渲染时登记）。applyGroupOrder 把组内新顺序
+   写回数组：组外元素位置不动，组内元素按新序原位替换。 */
+const DRAG_CB = {};
+function applyGroupOrder(list, ids){
+  const set = new Set(ids);
+  const moved = ids.map(id => list.find(o => o.id === id));
+  let mi = 0;
+  return list.map(o => set.has(o.id) ? moved[mi++] : o);
+}
+
 /* 快捷键帮助（R21）：好快捷键藏得住人 —— `?` 一按全在这。
    只读不改的纯展示浮层，走 askConfirm 同一套 minip 生命周期。 */
 function showShortcuts(){
@@ -3727,6 +3743,22 @@ function handleAct(el){
     LS.drop(LS_QHIST);
     qHistRender();
     toast('搜索历史已清空');
+  } else if (act === 'ask-stop'){
+    /* 停止生成（R25）：按 token 叫停主进程里那条 fetch。
+       真正的状态改写走 abortedByUser 回路（askRunTurn 的分支），这里只负责喊停。 */
+    const a = TOOL.asks.find(x => x.id === id);
+    if (!a || !a.stopToken) return toast('这一条已经不在生成了');
+    JZ.aiStop(a.stopToken);
+  } else if (act === 'ask-to-snip'){
+    /* 回答存为片段（R25）：问答是流水、片段是资产 —— 好答案值得进片段库
+       长期复用。分组固定「AI 回答」，可用片段页的编辑改组。 */
+    const a = TOOL.asks.find(x => x.id === id);
+    if (!a || !String(a.a || '').trim()) return toast('这条还没有回答内容');
+    TOOL.snips.unshift({ id:'s' + uid(), g:'AI 回答', lang:'文本',
+      name:(a.q || 'AI 回答').slice(0, 24), text:(a.q ? 'Q: ' + a.q + '\n\n' : '') + 'A: ' + a.a,
+      vars:[], fav:false });
+    mark('snips'); refresh(['snip']);
+    toast('已存为片段 · 「AI 回答」分组');
   } else if (act === 'md-copy'){
     /* 代码块一键复制（R14）：按钮长在代码块右上角，复制时读块的纯文本 ——
        markdown 源码里的转义不该进剪切板。 */
@@ -4520,11 +4552,22 @@ async function askRunTurn(rec, sess){
     }
   }
   rec.refs = refs;
-  const r = await aiRequest(aiPayload(prompt, cfg, {
-    history:askHistory(rec, ASK_CTX_TURNS), mode:rec.mode, system:sys }));
+  /* 停止生成（R25）：token 是渲染侧与主进程 ASK_STOP 表之间的取货单。
+     AbortSignal 本体过不了 IPC，能过的只有这个字符串。 */
+  const stopToken = 'ask-' + uid();
+  rec.stopToken = stopToken;
+  const r = await aiRequest(Object.assign(aiPayload(prompt, cfg, {
+    history:askHistory(rec, ASK_CTX_TURNS), mode:rec.mode, system:sys }), { stopToken: stopToken }));
   if (r && r.ok){
     rec.a = prefix + (String(r.text).trim() || '（模型返回了空内容）');
     rec.state = 'ok';
+  } else if (r && r.abortedByUser){
+    /* 用户主动停止：不是错误——如实记一句，保留已收到的接地前缀 */
+    rec.state = '';
+    rec.a = prefix + '（已停止生成）';
+    mark('asks'); refresh(['ask']);
+    toast('已停止生成');
+    return;
   } else {
     rec.state = 'err';
     rec.a = prefix + aiErrText(r);
@@ -5001,6 +5044,8 @@ $('panel').addEventListener('change', function(e){
    error 事件不冒泡，必须挂在捕获阶段才接得到。换成"图片文件已不在"的
    占位并标灰 —— 不摆一张永远裂开的图标假装没事。 */
 document.addEventListener('error', function(e){
+  const fv = e.target && e.target.closest ? e.target.closest('[data-fav]') : null;
+  if (fv){ fv.classList.add('fav-err'); return; }
   const im = e.target && e.target.closest ? e.target.closest('[data-shot-img]') : null;
   if (!im) return;
   const box = im.parentNode;
@@ -5135,6 +5180,44 @@ document.addEventListener('keydown', function(e){
   }
 });
 $('scrim').addEventListener('click', closePanel);
+/* 拖拽排序委托（R24）：dragstart 记住被拖条目；dragover 实时把它
+   插到悬停条目的前/后（网格与单列通用：按悬停点落在目标哪一半算）；
+   drop 把容器内的 id 顺序交给登记好的回调落库。三条都在 #panel 上，
+   与点击委托互不干扰 —— 真拖动时浏览器不会派发 click。 */
+let dragEl = null;
+$('panel').addEventListener('dragstart', e => {
+  const it = e.target.closest('[data-dsid]');
+  if (!it || !it.closest('[data-dragsort]')) return;
+  dragEl = it;
+  it.classList.add("dragging");
+  e.dataTransfer.effectAllowed = 'move';
+  try { e.dataTransfer.setData('text/plain', it.dataset.dsid); } catch (err) {}
+});
+$('panel').addEventListener('dragover', e => {
+  if (!dragEl) return;
+  const zone = e.target.closest('[data-dragsort]');
+  if (!zone || !zone.contains(dragEl)) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const it = e.target.closest('[data-dsid]');
+  if (!it || it === dragEl) return;
+  const r = it.getBoundingClientRect();
+  const after = (e.clientY - r.top) > r.height / 2;
+  it.parentNode.insertBefore(dragEl, after ? it.nextSibling : it);
+});
+$('panel').addEventListener('drop', e => {
+  if (!dragEl) return;
+  e.preventDefault();
+  const zone = dragEl.closest('[data-dragsort]');
+  const ids = [].slice.call(zone.querySelectorAll('[data-dsid]')).map(x => x.dataset.dsid);
+  dragEl.classList.remove("dragging");
+  const cb = DRAG_CB[zone.dataset.dragsort];
+  dragEl = null;
+  if (cb) cb(ids);
+});
+$('panel').addEventListener('dragend', () => {
+  if (dragEl){ dragEl.classList.remove("dragging"); dragEl = null; }
+});
 $('btnClose').addEventListener('click', closePanel);
 $('btnPin').addEventListener('click', function(){ togglePin(); });
 $('pinBar').querySelector('button').addEventListener('click', function(){ togglePin(false); });

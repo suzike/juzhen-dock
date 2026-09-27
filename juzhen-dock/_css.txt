@@ -126,6 +126,9 @@ em,i{font-style:normal}
 /* 键盘可达的可点卡片（R10）：tabindex 让 Tab 走得到它们，
    焦点环由全站 :focus-visible 统一画，这里只补指针暗示。 */
 .todo,.snip,.ncard,.shot,.row{cursor:pointer}
+.todo[data-dsid],.snip[data-dsid]{cursor:grab}
+.todo[data-dsid]:active{cursor:grabbing}
+.dragging{opacity:.4;transform:scale(.98) rotate(-1deg)}
 
 /* ==================== 桌面：单一纸面 + 一处极淡的暖斑 ====================
    原来是四团彩色光斑铺满整屏（g1..g4 各一个色相）外加 6 个彩色圆点装饰。
@@ -474,6 +477,20 @@ button:disabled:active{transform:none}
    和一个键盘选中态 —— 鼠标悬停与键盘选择共用同一套视觉。 */
 /* 搜索结果的来源标签：中性即可 —— 它的作用是"告诉你这条来自哪个板块"，
    不需要再上一次色；一屏十几条结果，每条一个彩标就成了别的花样。 */
+/* ---------- 真实站标 favicon（R26） ----------
+   img 加载成功就盖住兜底的 globe 图标；失败（离线/站标缺失）由
+   捕获阶段 error 委托加 .fav-err 隐藏 —— 图标显出来。三级降级：
+   站标 → 线条图标 → 文字。无网络时整条链路依然成立。 */
+/* 站标与兜底图标同位叠放：img 成功就盖住 svg，失败 fav-err 隐藏显出 svg。
+   首版把 .fav 当包装层、img 当内层——但 fav 就在 img 本体上，
+   ".fav img" 永远匹配不到（死选择器），成功时变成双图标并排。 */
+.ic{position:relative}
+.ic .fav,.lnk .fav{position:absolute;left:50%;top:50%;width:17px;height:17px;
+  margin:-8.5px 0 0 -8.5px;border-radius:4px;overflow:hidden;
+  background:var(--paper-3)}
+.lnk .fav{position:static;width:15px;height:15px;margin:0 6px 0 0;vertical-align:-2px}
+.fav-err{display:none!important}
+
 .sres .row .tg{flex:none;font-size:var(--fs-micro);font-weight:var(--fw-bold);color:var(--ink-3);
   background:var(--paper-3);border-radius:999px;padding:3px 9px;white-space:nowrap}
 .sres .row.sel{transform:translateY(-3px);box-shadow:0 14px 24px -12px rgba(43,33,25,.32),inset 0 0 0 1.5px var(--cb-brd)}
@@ -1153,6 +1170,8 @@ html.glass-drag,html.glass-drag *,html.glass-drag *::before,html.glass-drag *::a
 .qa-demo{flex:none;font-size:var(--fs-micro);font-weight:var(--fw-bold);color:var(--ink-3);background:var(--paper-3);
   border-radius:999px;padding:2px var(--sp-2);margin-top:1px}
 .qa-f{display:flex;gap:7px;align-items:center;margin-top:10px;padding-top:9px;border-top:1px solid var(--line)}
+/* 停止生成（R25）：只在 run 态出现，胭脂色示意"打断"——与失败同色系但更收敛 */
+.qa-stop{color:#B23A48;font-weight:var(--fw-semi)}
 .qa-f button{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px;
   border-radius:8px;font-size:var(--fs-micro);font-weight:var(--fw-semi);color:var(--ink-3);background:var(--paper-3);
   transition:all var(--dur-fast) var(--ease)}

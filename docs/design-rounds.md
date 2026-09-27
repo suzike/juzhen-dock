@@ -31,6 +31,9 @@
 | R21 | 快捷键帮助 + 主题弹层键盘导航 | `?` 一屏看全全部键位（askConfirm 同款 minip 生命周期；输入框豁免）；主题弹层开层落焦 + ↑↓ 导航 + Enter 原生激活；命令面板加「查看快捷键」 | PASS · 8 条键位文案逐条对源码无虚构；两处措辞偏差（Esc 顺序/Ctrl+Enter 范围）与 sc 块重复已修 |
 | R22 | 统计数字 CountUp | 今日页两格统计从上次值滚到新值（560ms 三次方缓出 rAF）；首渲染/不变/减少动效三态不演；并发后写者胜终值正确 | 首审 **FAIL**（调用点漏传 cuKey → countUp 死代码，静态 grep 判据被源码行满足）→ 补两实参 + 渲染断言 data-cu=2 → 修复确认 |
 | R23 | 空态图标个性化 | emptyBox 第三参 icon：场景 route/片段 code/速记 note/贴图 camera/文件夹 folder/网址 globe，默认 tray 兼容 | 首审 **FAIL**（函数签名未加第三参，6 处调用全是死参数；IC 失败形态查明：查无返回空 svg 静默进缓存）→ 补签名 → 产物断言接线为真 |
+| R24 | 拖拽排序 | 全站统一协议（容器 data-dragsort/条目 data-dsid/drop 回调 DRAG_CB 三段式）：今日待办 + 片段组内，落盘即持久 | PASS · 行为级模拟 11 项全过；两处结构瑕疵（snip 键 g.name 误写、applyGroupOrder 死代码）已修 |
+| R25 | 速问停止生成 + 存为片段 | 中止链路四层（渲染 token/IPC stopToken/主进程 ASK_STOP 表/ai.js extSignal 接入），abortedByUser 与超时严格区分；回答一键存为片段（「AI 回答」分组） | PASS · 单元级直测 9/9（慢速服务中止 234ms 返回）；_aitest 回归全过 |
+| R26 | 真实站标 favicon | 网址行 + 剪切板 link 卡站标（google s2 服务 lazy 加载），error 委托三级降级（站标→图标→文字）；最近使用悬停显全路径 | PASS · 10/10 站标 src 与 host 一致；favicon 覆盖链死选择器已修（同位叠放）；内网域名第三方请求记为已知权衡 |
 
 ## 过程结论（写给下一轮）
 

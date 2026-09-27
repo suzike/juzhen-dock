@@ -379,6 +379,14 @@ function pickAnswer(text, status, dialect){
 async function post(req, label){
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), req.timeout);
+  /* 用户中止（R25）：渲染侧的「停止」按钮经主进程把外部 signal 接到同一个
+     ctl 上。区分两种中止——超时是网络问题、用户中止是主观决定，
+     文案与后续处理都不同，不能混。 */
+  const onUserAbort = () => ctl.abort();
+  if (req.extSignal){
+    if (req.extSignal.aborted) ctl.abort();
+    else req.extSignal.addEventListener('abort', onUserAbort);
+  }
   try {
     const res = await fetch(req.url, { method: 'POST', headers: req.headers,
       body: JSON.stringify(req.body), signal: ctl.signal });
@@ -386,20 +394,23 @@ async function post(req, label){
     return { status: res.status, text: text };
   } catch (e){
     const aborted = e && (e.name === 'AbortError');
+    if (aborted && req.extSignal && req.extSignal.aborted) return { abortedByUser: true };
     return { netError: aborted
       ? ('等了 ' + Math.round(req.timeout / 1000) + ' 秒还没返回，已放弃' + (label ? '（' + label + '）' : ''))
       : String((e && e.message) || e) };
   } finally {
     clearTimeout(timer);
+    if (req.extSignal) req.extSignal.removeEventListener('abort', onUserAbort);
   }
 }
 
-async function sendChat(cfg, budgetOverride){
+async function sendChat(cfg, budgetOverride, extSignal){
   const req = buildChatBody(cfg);
   if (!req.ok) return req;
   let body = req.body;
   if (typeof budgetOverride === 'number') body = withOutputBudget(body, budgetOverride);
-  const r = await post({ url: req.url, headers: req.headers, body: body, timeout: req.timeout });
+  const r = await post({ url: req.url, headers: req.headers, body: body, timeout: req.timeout, extSignal: extSignal });
+  if (r.abortedByUser) return { abortedByUser: true };
   const picked = r.netError
     ? { ok: false, error: r.netError }
     : pickAnswer(r.text, r.status, req.dialect);
@@ -415,20 +426,24 @@ async function sendChat(cfg, budgetOverride){
 /* 一次问答。只有一种重试：**输出预算被推理吃满**。
    别的失败（401 / 404 / 连不上 / 超时）重试只是浪费用户的时间 ——
    同一次请求再发一遍，结果是一样的，而界面会多转一圈。 */
-async function chatOnce(cfg){
-  const first = await sendChat(cfg, null);
-  if (!first.ok) return first;
+async function chatOnce(cfg, extSignal){
+  const first = await sendChat(cfg, null, extSignal);
+  if (!first.ok){
+    if (first.abortedByUser) return { ok: false, abortedByUser: true, error: '已停止生成' };
+    return first;
+  }
   if (!isBudgetExhausted(first)) return first;
 
   const from = first.budget;
   const to = retryBudget(from);
-  const second = await sendChat(cfg, to);
+  const second = await sendChat(cfg, to, extSignal);
   if (second.ok && String(second.text || '').trim()){
     second.retried = true;
     second.retryFrom = from;
     second.retryTo = to;
     return second;
   }
+  if (second.abortedByUser) return { ok: false, abortedByUser: true, error: '已停止生成' };
   if (!second.ok) { second.retried = true; second.retryFrom = from; second.retryTo = to; return second; }
   return { ok: false, retried: true, retryFrom: from, retryTo: to, dialect: first.dialect,
     dialectName: first.dialectName,
