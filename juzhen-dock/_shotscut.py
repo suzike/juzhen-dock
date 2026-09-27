@@ -35,6 +35,7 @@ BROWSER = [
     ('05_themes.png',     '05-themes.png'),
     ('06_search.png',     '06-search.png'),
     ('08_theme_blue.png', '08-theme-blue.png'),
+    ('13_theme_dark.png', '13-theme-dark.png'),
 ]
 # 桌面版专有：浏览器里根本不渲染（DESK 分流），只能取自检截图
 DESK = [

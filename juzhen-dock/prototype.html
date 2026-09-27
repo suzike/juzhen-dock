@@ -33,6 +33,16 @@
   --a1:#c86b46; --a2:#b7b4b1; --a3:#e2b29f; --a4:#d0cecc;
   --a1-d:#84472f; --a1-soft:#f4e2da; --a1-brd:rgba(200,107,70,.30);
   --veil:rgba(251,245,234,.48);
+  /* ---- 结构令牌（R11 曜黑重构）----
+     applyTheme 运行时按主题注入；这组晴值只为 JS 启动前的第一帧兜底，
+     数值与 sunny 注入值一致（改派生时两边一起改）。 */
+  --solid:#FFFFFF;
+  --dock-bg:rgba(255,255,255,.72); --dock-brd:rgba(255,255,255,.90);
+  --pop-brd:rgba(255,255,255,.95);
+  --wash:var(--wash);
+  --scrim:rgba(43,33,25,.07);
+  --sb1:rgba(43,33,25,.16); --sb2:rgba(43,33,25,.28);
+  --toast-bg:rgba(43,33,25,.93); --toast-ink:#FBF5EA;
   --g1:rgba(228,214,195,.44); --g2:rgba(208,222,229,.44); --g3:rgba(218,230,220,.36); --g4:rgba(237,222,229,.36);
   --sh-panel:0 30px 80px -30px rgba(43,33,25,.26),0 4px 12px -5px rgba(43,33,25,.09),inset 0 1px 0 rgba(255,255,255,.88);
   --sh-card:0 2px 8px -3px rgba(43,33,25,.12);
@@ -114,8 +124,8 @@ em,i{font-style:normal}
 :focus-visible{outline:var(--focus-w) solid var(--a1);outline-offset:var(--focus-o)}
 .panel :focus-visible,.pv :focus-visible{outline-offset:-2px}
 ::-webkit-scrollbar{width:10px;height:10px}
-::-webkit-scrollbar-thumb{background:rgba(43,33,25,.16);border-radius:999px;border:3px solid transparent;background-clip:content-box}
-::-webkit-scrollbar-thumb:hover{background:rgba(43,33,25,.28);background-clip:content-box}
+::-webkit-scrollbar-thumb{background:var(--sb1);border-radius:999px;border:3px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:var(--sb2);background-clip:content-box}
 ::-webkit-scrollbar-track{background:transparent}
 /* 选区颜色（R10）：默认的蓝底选区在纸墨配色里突兀得像贴纸。
    主色 soft 底 + 深字 —— 和搜索命中高亮同一套语言。 */
@@ -138,8 +148,8 @@ em,i{font-style:normal}
 .desk-icons{position:absolute;left:26px;top:26px;z-index:1;display:flex;flex-direction:column;gap:5px}
 .desk-icon{width:86px;padding:10px 5px;border-radius:var(--r-l);display:flex;flex-direction:column;align-items:center;gap:7px;
   transition:background var(--dur-med) var(--ease),transform var(--dur-med) var(--spring)}
-.desk-icon:hover{background:rgba(255,255,255,.7);transform:translateY(-3px)}
-.desk-icon .gl{width:44px;height:44px;border-radius:14px;background:#fff;display:flex;align-items:center;justify-content:center;
+.desk-icon:hover{background:var(--surf-2);transform:translateY(-3px)}
+.desk-icon .gl{width:44px;height:44px;border-radius:14px;background:var(--solid);display:flex;align-items:center;justify-content:center;
   box-shadow:0 10px 20px -10px rgba(43,33,25,.30),inset 0 0 0 1px var(--line)}
 .desk-icon:nth-child(1) .gl{color:var(--a1)}
 .desk-icon:nth-child(2) .gl{color:var(--a3)}
@@ -147,11 +157,11 @@ em,i{font-style:normal}
 .desk-icon em{font-size:var(--fs-meta);font-weight:var(--fw-med);color:var(--ink-2);text-align:center;line-height:var(--lh-tight)}
 
 .dock{position:absolute;left:50%;bottom:18px;z-index:1;transform:translateX(-50%);display:flex;align-items:center;gap:5px;
-  padding:var(--sp-2) var(--sp-3);border-radius:var(--r-xl);background:rgba(255,255,255,.72);backdrop-filter:blur(30px) saturate(126%);
-  border:1.5px solid rgba(255,255,255,.9);box-shadow:0 20px 44px -20px rgba(43,33,25,.34),inset 0 1px 0 #fff;}
+  padding:var(--sp-2) var(--sp-3);border-radius:var(--r-xl);background:var(--dock-bg);backdrop-filter:blur(30px) saturate(126%);
+  border:1.5px solid var(--dock-brd);box-shadow:0 20px 44px -20px rgba(43,33,25,.34),inset 0 1px 0 var(--solid);}
 .tb{width:38px;height:38px;border-radius:var(--r-m);display:flex;align-items:center;justify-content:center;color:var(--ink-3);
   cursor:default;transition:all var(--dur-med) var(--spring)}
-.tb:hover{background:#fff;transform:translateY(-5px) scale(1.07);box-shadow:0 14px 24px -10px rgba(43,33,25,.32)}
+.tb:hover{background:var(--solid);transform:translateY(-5px) scale(1.07);box-shadow:0 14px 24px -10px rgba(43,33,25,.32)}
 .tb.on{color:var(--a1);background:var(--a1-soft)}
 .tb-sep{width:1.5px;height:22px;border-radius:2px;background:var(--line-2);margin:0 var(--sp-1)}
 
@@ -169,7 +179,7 @@ body[data-edge="right"] .beam{right:0;border-radius:4px 0 0 4px}
 body[data-edge="left"]  .beam{left:0;border-radius:0 4px 4px 0}
 .hotzone.armed .beam{opacity:.95;transform:scaleY(1)}
 
-.scrim{position:fixed;inset:0;z-index:var(--z-scrim);background:rgba(43,33,25,.07);opacity:0;transition:opacity var(--dur-slow) var(--ease);pointer-events:none}
+.scrim{position:fixed;inset:0;z-index:var(--z-scrim);background:var(--scrim);opacity:0;transition:opacity var(--dur-slow) var(--ease);pointer-events:none}
 .scrim.show{opacity:1;pointer-events:auto}
 
 /* ==================== 面板外壳 ==================== */
@@ -227,7 +237,7 @@ body[data-edge="right"] .panel.open,body[data-edge="left"] .panel.open{
 
 /* ==================== 主题弹层 ==================== */
 .tpop{position:absolute;z-index:9;top:56px;right:16px;width:330px;padding:var(--sp-3);border-radius:var(--r-xl);
-  background:var(--pop);border:1.5px solid rgba(255,255,255,.95);
+  background:var(--pop);border:1.5px solid var(--pop-brd);
   box-shadow:0 30px 70px -26px rgba(43,33,25,.4);
   opacity:0;transform:translateY(-8px) scale(.97);transform-origin:100% 0;pointer-events:none;
   backdrop-filter:none;-webkit-backdrop-filter:none;
@@ -239,11 +249,11 @@ body[data-edge="right"] .panel.open,body[data-edge="left"] .panel.open{
 .tpop-t{font-size:var(--fs-meta);font-weight:var(--fw-bold);color:var(--ink-3);letter-spacing:.12em;padding:2px var(--sp-1) 9px}
 .tp-item{display:flex;align-items:center;gap:11px;width:100%;padding:9px 10px;border-radius:var(--r-m);text-align:left;
   transition:background var(--dur-fast) var(--ease)}
-.tp-item:hover{background:rgba(255,255,255,.9)}
+.tp-item:hover{background:var(--surf-2)}
 .tp-item.on{background:var(--a1-soft);box-shadow:inset 0 0 0 1.5px var(--a1-brd)}
 .tp-chips{flex:none;display:grid;grid-template-columns:repeat(3,11px);grid-auto-rows:12px;gap:2.5px;border-radius:8px;
-  padding:var(--sp-1);background:#fff;box-shadow:0 2px 6px -2px rgba(43,33,25,.22)}
-.tp-chips i{display:block;border-radius:3.5px;box-shadow:inset 0 0 0 1px rgba(43,33,25,.07)}
+  padding:var(--sp-1);background:var(--solid);box-shadow:0 2px 6px -2px rgba(43,33,25,.22)}
+.tp-chips i{display:block;border-radius:3.5px;box-shadow:inset 0 0 0 1px var(--line)}
 .tp-tx{flex:1;min-width:0}
 .tp-nm{font-size:var(--fs-body);font-weight:var(--fw-semi);color:var(--ink-1)}
 .tp-ds{font-size:var(--fs-meta);color:var(--ink-3);margin-top:3px}
@@ -313,7 +323,7 @@ body[data-edge="right"] .panel.open,body[data-edge="left"] .panel.open{
 
 .main{flex:1;min-width:0;display:flex;flex-direction:column;padding:var(--sp-3) 15px 0}
 .search{flex:none;position:relative;display:flex;align-items:center;gap:10px;padding:var(--sp-2) var(--sp-3);border-radius:var(--r-l);margin-bottom:var(--sp-3);
-  background:rgba(255,255,255,.7);box-shadow:inset 0 0 0 1.5px var(--line);color:var(--ink-4);transition:all var(--dur-med) var(--ease)}
+  background:var(--surf);box-shadow:inset 0 0 0 1.5px var(--line);color:var(--ink-4);transition:all var(--dur-med) var(--ease)}
 .search:focus-within{background:var(--card);box-shadow:inset 0 0 0 1.5px var(--a1),0 10px 22px -14px var(--a1)}
 .search input{flex:1;min-width:0;border:none;outline:none;background:transparent;font-size:var(--fs-body);color:var(--ink-1)}
 .search input::placeholder{color:var(--ink-4)}
@@ -476,7 +486,7 @@ button:disabled:active{transform:none}
    原来只能靠右键。同一条规矩——只有右键 = 没有入口。常态可见，
    不写 opacity、不挂 hover 才出现。行本身的主点击仍是"执行这一条"。 */
 .sres .row .ctx-more{width:20px;height:20px;border-radius:6px;color:var(--ink-3)}
-.sres .row .ctx-more:hover{color:var(--ink-1);background:rgba(31,29,26,.09)}
+.sres .row .ctx-more:hover{color:var(--ink-1);background:var(--wash)}
 /* 每组只列前 6 条，剩下多少写在组尾 —— 组头的"N 项"是命中总数，
    两处不一致会让人以为结果被截没了 */
 .sres .more{padding:var(--sp-2) var(--sp-3) 2px;font-size:var(--fs-meta);color:var(--ink-3)}
@@ -644,7 +654,7 @@ button:disabled:active{transform:none}
   box-shadow:0 2px 6px -2px rgba(43,33,25,.24)}
 /* 每格加一道内描边：纸面那两档淡到接近白，没有描边就跟白色底糊在一起，
    等于"说好画四个点、只看得见三个"。 */
-.tc-chips i{display:block;height:24px;box-shadow:inset 0 0 0 1px rgba(43,33,25,.07)}
+.tc-chips i{display:block;height:24px;box-shadow:inset 0 0 0 1px var(--line)}
 .tc-nm{font-size:var(--fs-body);font-weight:var(--fw-bold);color:var(--ink-1)}
 .tc-ds{font-size:var(--fs-meta);color:var(--ink-3);margin-top:3px}
 .set-row{display:flex;align-items:center;gap:var(--sp-3);padding:11px 2px;border-bottom:1px solid var(--line)}
@@ -781,7 +791,10 @@ html.glass-drag,html.glass-drag *,html.glass-drag *::before,html.glass-drag *::a
 .td-ring svg{width:74px;height:74px;transform:rotate(-90deg)}
 .td-ring-bg,.td-ring-fg{fill:none;stroke-width:7;stroke-linecap:round}
 .td-ring-bg{stroke:var(--paper-3)}
-.td-ring-fg{stroke:var(--cb);transition:stroke-dashoffset var(--dur-slow) var(--ease-in-out)}
+.td-ring-fg{stroke:var(--cb);transition:stroke-dashoffset var(--dur-slow) var(--ease-in-out);
+  /* 柔光（R11，参照 FitSpark 的 ring glow）：同色 drop-shadow 让进度环
+     "发着光"，深色主题下尤其像参考稿；浅色下退成一道淡晕，不抢内容。 */
+  filter:drop-shadow(0 0 5px var(--cb))}
 .td-ring-t{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
 .td-ring-n{font-size:var(--fs-hero);font-weight:var(--fw-bold);line-height:1;color:var(--ink-1);
   font-variant-numeric:tabular-nums}
@@ -852,7 +865,7 @@ html.glass-drag,html.glass-drag *,html.glass-drag *::before,html.glass-drag *::a
    只是比卡片头上那个小一号，免得在一排小动作里抢眼。 */
 .sc-act .ctx-more{width:16px;height:16px;margin:-1px -4px -1px -1px;border-radius:5px;
   color:var(--ink-3)}
-.sc-act .ctx-more:hover{color:var(--ink-1);background:rgba(31,29,26,.09)}
+.sc-act .ctx-more:hover{color:var(--ink-1);background:var(--wash)}
 .sc-at{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:162px}
 .sc-act.miss{color:var(--ink-4);
   background:repeating-linear-gradient(135deg,rgba(178,58,72,.075) 0 6px,transparent 6px 12px);
@@ -1186,13 +1199,13 @@ table.sheet td.num{text-align:right}
 
 /* ==================== Toast / 右键菜单 ==================== */
 .toast{position:fixed;left:22px;bottom:22px;z-index:var(--z-toast);display:flex;align-items:center;gap:10px;padding:10px 15px;border-radius:var(--r-l);
-  background:rgba(43,33,25,.93);color:#FBF5EA;font-size:var(--fs-body);font-weight:var(--fw-med);
+  background:var(--toast-bg);color:var(--toast-ink);font-size:var(--fs-body);font-weight:var(--fw-med);
   box-shadow:0 20px 46px -18px rgba(43,33,25,.6);opacity:0;transform:translateY(16px) scale(.96);
   transition:opacity var(--dur-slow) var(--spring),transform var(--dur-slow) var(--spring);pointer-events:none}
 .toast.show{opacity:1;transform:none}
 .toast .t-dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--a1)}
-.ctx{position:fixed;z-index:var(--z-ctx);min-width:190px;padding:5px;border-radius:var(--r-l);background:rgba(255,255,255,.94);
-  border:1.5px solid rgba(255,255,255,.95);
+.ctx{position:fixed;z-index:var(--z-ctx);min-width:190px;padding:5px;border-radius:var(--r-l);background:var(--pop);
+  border:1.5px solid var(--pop-brd);
   box-shadow:0 26px 60px -22px rgba(43,33,25,.42);
   opacity:0;transform:scale(.94);transform-origin:top left;
   transition:opacity var(--dur-fast) var(--ease),transform var(--dur-fast) var(--ease);pointer-events:none}
@@ -1234,7 +1247,7 @@ table.sheet td.num{text-align:right}
   background:var(--veil);backdrop-filter:blur(10px);transition:opacity var(--dur-slow) var(--ease),visibility var(--dur-slow)}
 .onboard.hide{opacity:0;visibility:hidden;pointer-events:none}
 .onboard-card{width:420px;max-width:calc(100vw - 40px);padding:28px 26px var(--sp-6);border-radius:var(--r-2xl);text-align:center;
-  background:rgba(255,255,255,.9);backdrop-filter:blur(42px) saturate(132%);border:1.5px solid rgba(255,255,255,.95);
+  background:var(--pop);backdrop-filter:blur(42px) saturate(132%);border:1.5px solid var(--pop-brd);
   box-shadow:0 40px 92px -34px rgba(43,33,25,.44)}
 .ob-mark{width:52px;height:52px;margin:0 auto 15px;border-radius:16px;position:relative;overflow:hidden;
   background:linear-gradient(146deg,var(--a1),var(--a1-d));box-shadow:0 18px 34px -14px var(--a1)}
@@ -1358,7 +1371,7 @@ body.real-desktop .pin-bar em{opacity:.9}
 /* 正在退场的浮层：还在 DOM 里（要放完淡出），但已经不算"当前浮层"了 */
 .minip.closing{pointer-events:none}
 .mp-card{width:min(392px,calc(100% - 56px));padding:18px 18px var(--sp-4);border-radius:var(--r-xl);
-  background:var(--pop);border:1.5px solid rgba(255,255,255,.95);
+  background:var(--pop);border:1.5px solid var(--pop-brd);
   box-shadow:0 30px 70px -26px rgba(43,33,25,.46);
   transform:translateY(12px) scale(.97);transition:transform var(--dur-med) var(--spring)}
 .minip.show .mp-card{transform:none}
@@ -1429,7 +1442,7 @@ body.real-desktop .pin-bar em{opacity:.9}
 .ctx-more{flex:none;display:inline-flex;align-items:center;justify-content:center;
   width:22px;height:22px;border-radius:50%;color:var(--ink-3);background:transparent;
   font-family:inherit;transition:color var(--dur-fast) var(--ease),background var(--dur-fast) var(--ease)}
-.ctx-more:hover{color:var(--ink-1);background:rgba(31,29,26,.07)}
+.ctx-more:hover{color:var(--ink-1);background:var(--wash)}
 
 /* ============================================================
    终端（ConPTY）
@@ -1468,19 +1481,19 @@ body.real-desktop .pin-bar em{opacity:.9}
 .tz-tab.dead b{text-decoration:line-through}
 .tz-x{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
   border-radius:50%;color:var(--ink-3);transition:background var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease)}
-.tz-x:hover{background:rgba(31,29,26,.10);color:var(--ink-1)}
+.tz-x:hover{background:var(--wash);color:var(--ink-1)}
 /* 标签上的 ⋯：和站里其它卡片同一条规矩 —— 有右键菜单的地方都要有看得见的入口。
    只有右键时，"重命名 / 换 Shell"这些能力等于不存在（用户不会去猜）。 */
 .tz-more{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
   border-radius:50%;color:var(--ink-3);transition:background var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease)}
-.tz-more:hover{background:rgba(31,29,26,.10);color:var(--ink-1)}
+.tz-more:hover{background:var(--wash);color:var(--ink-1)}
 .tz-add,.tz-all{flex:none;display:inline-flex;align-items:center;gap:var(--sp-1);height:26px;padding:0 9px;
   border-radius:var(--r-s);background:var(--surf);border:1px solid var(--line);
   color:var(--ink-2);font-size:var(--fs-micro);font-family:inherit;cursor:pointer;
   transition:background var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease)}
 .tz-add:hover{background:var(--cb-soft);border-color:var(--cb-brd);color:var(--cb-ink)}
 .tz-all{color:var(--ink-3)}
-.tz-all:hover{color:var(--ink-1);background:rgba(31,29,26,.06)}
+.tz-all:hover{color:var(--ink-1);background:var(--wash)}
 
 /* ---- 终端本体 ----
    高度原来是 clamp(240px,44vh,540px) —— 写死封顶。加上上方那面 16 键的预设墙、
@@ -1524,7 +1537,7 @@ body.real-desktop .pin-bar em{opacity:.9}
 .asess-n{flex:none;font-size:var(--fs-micro);color:var(--ink-3);font-variant-numeric:tabular-nums;
   background:var(--paper-3);padding:2px 7px;border-radius:999px}
 .asess-h .ctx-more{width:20px;height:20px;border-radius:6px;color:var(--ink-3)}
-.asess-h .ctx-more:hover{color:var(--ink-1);background:rgba(31,29,26,.09)}
+.asess-h .ctx-more:hover{color:var(--ink-1);background:var(--wash)}
 .asess-r{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:9px}
 .asess-tg{display:inline-flex;align-items:center;gap:5px;height:27px;padding:0 10px;border-radius:var(--r-s);
   border:1px solid var(--line);background:var(--surf);color:var(--ink-2);
@@ -1784,7 +1797,28 @@ const THEMES = [
     paper:'#FBF3EF', paper2:'#FFFFFF', paper3:'#F7E3DA', side:'#FAEDE6',
     ink1:'#2E1C16', ink2:'#5C3E32', ink3:'#7D5C4E', ink4:'#B09789',
     hues:['#C3272B'],
-    glow:['#f0ded4','#eee0d2','#f1e1da','#eadfe0'] }
+    glow:['#f0ded4','#eee0d2','#f1e1da','#eadfe0'] },
+
+  /* ↓ R11 曜黑家族：参照深色仪表盘参考稿（docs/design-midnight.md）。
+     与浅色主题的三处结构差异：
+       · mode:'dark' —— applyTheme 按它分支派生 a1-soft/a1-d/阴影/遮罩；
+       · solid —— 卡片实底色，所有半透明面从它派生（浅色主题不写即白色）；
+       · 墨阶反置 —— ink1..4 是浅字，line/veil/wash 由 ink1 派生自动反转。
+     纸面三档逐档提亮（画布 → 面板 → 凹陷面），面板靠亮度分层，
+     阴影用纯黑 —— 这是深色 UI 的正确画法，参考稿全是一样的。 */
+  { id:'obsidian', name:'曜夜', sub:'曜石画布 · 鸢尾紫主色', mode:'dark',
+    paper:'#101116', paper2:'#171821', paper3:'#1F2130', side:'#14151D',
+    solid:'#1D1F2A',
+    ink1:'#ECECF4', ink2:'#B9BACB', ink3:'#8B8CA0', ink4:'#606176',
+    hues:['#8B7CF7'],
+    glow:['#1d1e33','#17202e','#1c1728','#181d2a'] },
+
+  { id:'firefly', name:'流萤', sub:'暗夜画布 · 荧光绿主色', mode:'dark',
+    paper:'#0F1110', paper2:'#161917', paper3:'#1E2320', side:'#131512',
+    solid:'#1B201C',
+    ink1:'#EAEEE6', ink2:'#B2BBAF', ink3:'#83907F', ink4:'#5A655A',
+    hues:['#B7EE3F'],
+    glow:['#161d16','#121a18','#181a12','#141a14'] }
 ];
 
 const hex2rgb = h => { const n = parseInt(h.slice(1), 16); return [(n>>16)&255, (n>>8)&255, n&255]; };
@@ -1792,6 +1826,10 @@ const rgba    = (h, a) => { const c = hex2rgb(h); return 'rgba(' + c[0] + ',' + 
 const darken  = (h, f) => '#' + hex2rgb(h).map(v => Math.max(0, Math.round(v*f)).toString(16).padStart(2,'0')).join('');
 /* 向白色混合 —— 用来从任意基色派生淡彩卡片底 */
 const tint    = (h, f) => '#' + hex2rgb(h).map(v => Math.round(v + (255 - v) * f).toString(16).padStart(2,'0')).join('');
+/* 向任意目标色混合（R11）：深色主题的暗洗（主色掺画布）与亮字
+   （主色掺白）都要它 —— tint/darken 只会往白/黑两头走，够不着中间。 */
+const mixc    = (h, t2, f) => { const a = hex2rgb(h), b = hex2rgb(t2);
+  return '#' + a.map((v, i) => Math.round(v + (b[i] - v) * f).toString(16).padStart(2,'0')).join(''); };
 
 /* 把每个主题的 hues 补到 9 个位置（历史形状）。
    为什么还要补：除了 vars() 只认 ACC[0]，另有 4 处真的在按槽位取色 ——
@@ -1835,12 +1873,20 @@ THEMES.forEach(t => {
 
    参数签名保留但不再读取：调用点有十五六处，逐个改既慢又容易漏，
    而**漏掉任何一个都会让某块地方继续花**。这里一处改掉，全部生效。 */
-const vars = () => '--cb:' + ACC[0]
+const vars = () => {
+  /* 深色模式（R11）：色族五档随模式反转 ——
+     soft 是"主色掺画布"的暗洗（图标底/标签底），tint 用主题实底（不再白），
+     ink 是"主色掺白"的亮字。probe28 抓过流萤 4.05<4.5 的教训：
+     深色画布上沿用白派生 tint + 深色字，两头都不 readable。 */
+  const dk = CUR && CUR.mode === 'dark';
+  const SOL = (CUR && CUR.solid) || '#FFFFFF';
+  return '--cb:' + ACC[0]
   + ';--cb-bar:' + rgba(ACC[0], .55)
-  + ';--cb-soft:' + tint(ACC[0], .88)
-  + ';--cb-tint:' + rgba('#FFFFFF', glassA(glassG(), .32))
-  + ';--cb-brd:'  + rgba(ACC[0], .20)
-  + ';--cb-ink:'  + darken(ACC[0], .52) + ';';
+  + ';--cb-soft:' + (dk ? mixc(ACC[0], CUR.paper, .80) : tint(ACC[0], .88))
+  + ';--cb-tint:' + rgba(SOL, glassA(glassG(), .32))
+  + ';--cb-brd:'  + rgba(ACC[0], dk ? .30 : .20)
+  + ';--cb-ink:'  + (dk ? mixc(ACC[0], '#FFFFFF', .52) : darken(ACC[0], .52)) + ';';
+};
 /* ↑ .62 → .52（2026-09-22）。
    --cb-ink 是**字色**：压在 --cb-soft（主色的淡彩底）或纸面上的小字
    （标签、单位、编号、面包屑）。加了"秋香"那套（主色 #d9b611 芥末黄）
@@ -1869,6 +1915,10 @@ function applyTheme(id){
   CUR = THEMES.find(t => t.id === id) || THEMES[0];
   ACC = CUR.hues.slice();
   const r = document.documentElement.style, t = CUR;
+  /* 深色模式（R11）：solid 是卡片实底，所有半透明面从它派生 ——
+     旧版写死 #FFFFFF，深色主题会顶着一身白底出现。 */
+  const dk = t.mode === 'dark';
+  const SOL = t.solid || '#FFFFFF';
   const set = (k, v) => r.setProperty(k, v);
   set('--paper', t.paper); set('--paper-2', t.paper2); set('--paper-3', t.paper3);
   /* 四个半透明面 + 模糊，全部由 GLASS 派生。
@@ -1877,17 +1927,17 @@ function applyTheme(id){
   const g = glassG();
   set('--panel-bg', rgba(t.paper2, g));
   set('--side-bg',  rgba(t.side,    glassA(g,  .14)));
-  set('--surf',     rgba('#FFFFFF', glassA(g, -.04)));
-  set('--surf-2',   rgba('#FFFFFF', glassA(g,  .32)));
+  set('--surf',     rgba(SOL,       glassA(g, -.04)));
+  set('--surf-2',   rgba(SOL,       glassA(g,  .32)));
   set('--surf-solid', rgba(t.paper2, glassA(g, .40)));
   /* 卡片面（2026-09-22）。卡片原来一律写死 #fff —— 滑杆对它们**完全无效**，
      用户看到的正是"面板在透，卡片还是一块块实心板"。
      档差 .38 让它始终比面板底高一档：卡片仍然浮在面板之上，只是跟着一起透。 */
-  set('--card',     rgba('#FFFFFF', glassA(g,  .38)));
+  set('--card',     rgba(SOL,       glassA(g,  .38)));
   /* 弹层（配色弹层 / 表单浮层）比卡片再实一点：它压在所有内容之上，
      透太多会跟背后的正文糊在一起。取 .33，正好落在原来写死的
      .90（.tpop）与 .97（.mp-card）之间，两处的观感都只差三四个百分点。 */
-  set('--pop',      rgba('#FFFFFF', glassA(g,  .33)));
+  set('--pop',      rgba(SOL,       glassA(g,  .33)));
   /* 纸面本身也参与。--paper-3 是"凹陷面"的底 —— 代码块、说明条、分段控件
      轨道、芯片底、状态徽标，全站 39 处。它不参与的话，面板调到很透以后，
      页面上会浮着一块块不透明的补丁，比不调还难看。一处改掉，全部生效。 */
@@ -1896,26 +1946,48 @@ function applyTheme(id){
      反过来面板越实，模糊纯属白花钱（backdrop-filter 是唤出时最贵的一步）。 */
   set('--blur-panel', Math.round(Math.max(18, Math.min(64, 42 + (60 - GLASS) * .45))) + 'px');
   set('--ink-1', t.ink1); set('--ink-2', t.ink2); set('--ink-3', t.ink3); set('--ink-4', t.ink4);
-  set('--line', rgba(t.ink1, .10)); set('--line-2', rgba(t.ink1, .18)); set('--brd', rgba('#FFFFFF', .64));
+  /* --brd 是面板边缘那道"受光的发丝线"：浅色下白 .64，深色下白 .10 ——
+     参考稿的深色面板同样留着一条比面亮一点的 1px 边，只是弱得多。 */
+  set('--line', rgba(t.ink1, .10)); set('--line-2', rgba(t.ink1, .18));
+  set('--brd', dk ? rgba('#FFFFFF', .10) : rgba('#FFFFFF', .64));
   /* 辅助色不再是"另外三个色相"。
      原来 a2/a3/a4 取色轮上另外三个位置，于是页头插画（文件夹那一张的三个
      文件夹分别是 --cb / --a3 / --a2）本身就是三种颜色 —— 插画反倒成了一屏
      里最花的地方。现在 a2/a4 走中性灰、a3 走主色的浅调，插画整体呈现
-     "主色 + 灰阶"，跟界面其它部分同一个调子。 */
+     "主色 + 灰阶"，跟界面其它部分同一个调子。
+     深色模式（R11）：a2/a4 的"中性灰"要从浅墨往白里掺（墨阶反置），
+     a3 的浅调同理；a1-soft/a1-d 不再往白/黑两头像，改走 mixc ——
+     soft 是"主色掺画布"的暗洗（芯片底），d 是"主色掺白"的亮字，
+     深色下 mark/选中芯片/告警字才 readable。 */
   const H = t.hues;
   set('--a1', H[0]);
-  set('--a2', tint(t.ink1, .66));
-  set('--a3', tint(H[0], .48));
-  set('--a4', tint(t.ink1, .78));
-  set('--a1-d', darken(H[0], .66)); set('--a1-soft', tint(H[0], .84)); set('--a1-brd', rgba(H[0], .30));
+  set('--a2', dk ? mixc(t.ink1, '#FFFFFF', .60) : tint(t.ink1, .66));
+  set('--a3', dk ? mixc(H[0], t.paper, .52) : tint(H[0], .48));
+  set('--a4', dk ? mixc(t.ink1, '#FFFFFF', .74) : tint(t.ink1, .78));
+  set('--a1-d', dk ? mixc(H[0], '#FFFFFF', .45) : darken(H[0], .66));
+  set('--a1-soft', dk ? mixc(H[0], t.paper, .82) : tint(H[0], .84));
+  set('--a1-brd', rgba(H[0], dk ? .45 : .30));
   set('--veil', rgba(t.paper, .48));
   /* 光斑：降到 .44/.36 —— 原本 .95/.90 的四团彩色几乎不透明地铺满整屏，
      是"整体太亮"的最大来源。 */
   set('--g1', rgba(t.glow[0], .44)); set('--g2', rgba(t.glow[1], .44));
   set('--g3', rgba(t.glow[2], .36)); set('--g4', rgba(t.glow[3], .36));
-  set('--sh-panel', '0 34px 90px -30px ' + rgba(t.ink1,.30) + ',0 4px 12px -5px ' + rgba(t.ink1,.10) + ',inset 0 1px 0 ' + rgba('#FFFFFF',.92));
-  set('--sh-card', '0 2px 8px -3px ' + rgba(t.ink1,.12));
-  set('--sh-lift', '0 18px 34px -16px ' + rgba(t.ink1,.30));
+  /* 阴影（R11）：深色下换纯黑 —— 黑影才是深色 UI 的正确阴影，
+     浅字墨（接近白）做阴影会变成一团白雾。 */
+  const SHB = dk ? '#000000' : t.ink1;
+  set('--sh-panel', '0 34px 90px -30px ' + rgba(SHB, dk ? .55 : .30) + ',0 4px 12px -5px ' + rgba(SHB, dk ? .22 : .10) + ',inset 0 1px 0 ' + rgba(SOL, .92));
+  set('--sh-card', '0 2px 8px -3px ' + rgba(SHB, dk ? .30 : .12));
+  set('--sh-lift', '0 18px 34px -16px ' + rgba(SHB, dk ? .55 : .30));
+  /* ---- 结构令牌（R11）----
+     这些位置原来在 CSS 里写死白色或晴墨，深色主题会当场穿帮。
+     全部改为运行时注入；:root 里保留晴值兜底（JS 启动前那第一帧）。 */
+  set('--solid', SOL);
+  set('--dock-bg', rgba(SOL, .72)); set('--dock-brd', rgba(SOL, .90));
+  set('--pop-brd', dk ? rgba('#FFFFFF', .12) : rgba('#FFFFFF', .95));
+  set('--wash', rgba(t.ink1, .09));
+  set('--scrim', dk ? 'rgba(0,0,0,.30)' : rgba(t.ink1, .07));
+  set('--sb1', rgba(t.ink1, .18)); set('--sb2', rgba(t.ink1, .32));
+  set('--toast-bg', rgba(t.ink1, .93)); set('--toast-ink', t.paper);
 }
 
 /* 夜间自动水墨（R9）：nightAuto 开着时，19:00–06:00 用「水墨」，
@@ -1925,7 +1997,11 @@ function applyTheme(id){
 function effThemeId(){
   if (!state.settings.nightAuto) return state.settings.theme;
   const h = new Date().getHours();
-  return (h >= 19 || h < 6) ? 'inkwash' : state.settings.theme;
+  if (h < 19 && h >= 6) return state.settings.theme;
+  /* 夜间接管的对象是**浅色**主题 —— 你已经在用曜夜/流萤，夜里没有
+     "再换深一点"这回事，保持现状就是对的选择。水墨只负责把浅色换下来。 */
+  const cur = THEMES.find(t => t.id === state.settings.theme);
+  return (cur && cur.mode === 'dark') ? state.settings.theme : 'inkwash';
 }
 
 /* 由分类名派生颜色 —— 在整套色轮里轮转，保证同一分类永远同色 */

@@ -99,7 +99,28 @@ const THEMES = [
     paper:'#FBF3EF', paper2:'#FFFFFF', paper3:'#F7E3DA', side:'#FAEDE6',
     ink1:'#2E1C16', ink2:'#5C3E32', ink3:'#7D5C4E', ink4:'#B09789',
     hues:['#C3272B'],
-    glow:['#f0ded4','#eee0d2','#f1e1da','#eadfe0'] }
+    glow:['#f0ded4','#eee0d2','#f1e1da','#eadfe0'] },
+
+  /* ↓ R11 曜黑家族：参照深色仪表盘参考稿（docs/design-midnight.md）。
+     与浅色主题的三处结构差异：
+       · mode:'dark' —— applyTheme 按它分支派生 a1-soft/a1-d/阴影/遮罩；
+       · solid —— 卡片实底色，所有半透明面从它派生（浅色主题不写即白色）；
+       · 墨阶反置 —— ink1..4 是浅字，line/veil/wash 由 ink1 派生自动反转。
+     纸面三档逐档提亮（画布 → 面板 → 凹陷面），面板靠亮度分层，
+     阴影用纯黑 —— 这是深色 UI 的正确画法，参考稿全是一样的。 */
+  { id:'obsidian', name:'曜夜', sub:'曜石画布 · 鸢尾紫主色', mode:'dark',
+    paper:'#101116', paper2:'#171821', paper3:'#1F2130', side:'#14151D',
+    solid:'#1D1F2A',
+    ink1:'#ECECF4', ink2:'#B9BACB', ink3:'#8B8CA0', ink4:'#606176',
+    hues:['#8B7CF7'],
+    glow:['#1d1e33','#17202e','#1c1728','#181d2a'] },
+
+  { id:'firefly', name:'流萤', sub:'暗夜画布 · 荧光绿主色', mode:'dark',
+    paper:'#0F1110', paper2:'#161917', paper3:'#1E2320', side:'#131512',
+    solid:'#1B201C',
+    ink1:'#EAEEE6', ink2:'#B2BBAF', ink3:'#83907F', ink4:'#5A655A',
+    hues:['#B7EE3F'],
+    glow:['#161d16','#121a18','#181a12','#141a14'] }
 ];
 
 const hex2rgb = h => { const n = parseInt(h.slice(1), 16); return [(n>>16)&255, (n>>8)&255, n&255]; };
@@ -107,6 +128,10 @@ const rgba    = (h, a) => { const c = hex2rgb(h); return 'rgba(' + c[0] + ',' + 
 const darken  = (h, f) => '#' + hex2rgb(h).map(v => Math.max(0, Math.round(v*f)).toString(16).padStart(2,'0')).join('');
 /* 向白色混合 —— 用来从任意基色派生淡彩卡片底 */
 const tint    = (h, f) => '#' + hex2rgb(h).map(v => Math.round(v + (255 - v) * f).toString(16).padStart(2,'0')).join('');
+/* 向任意目标色混合（R11）：深色主题的暗洗（主色掺画布）与亮字
+   （主色掺白）都要它 —— tint/darken 只会往白/黑两头走，够不着中间。 */
+const mixc    = (h, t2, f) => { const a = hex2rgb(h), b = hex2rgb(t2);
+  return '#' + a.map((v, i) => Math.round(v + (b[i] - v) * f).toString(16).padStart(2,'0')).join(''); };
 
 /* 把每个主题的 hues 补到 9 个位置（历史形状）。
    为什么还要补：除了 vars() 只认 ACC[0]，另有 4 处真的在按槽位取色 ——
@@ -150,12 +175,20 @@ THEMES.forEach(t => {
 
    参数签名保留但不再读取：调用点有十五六处，逐个改既慢又容易漏，
    而**漏掉任何一个都会让某块地方继续花**。这里一处改掉，全部生效。 */
-const vars = () => '--cb:' + ACC[0]
+const vars = () => {
+  /* 深色模式（R11）：色族五档随模式反转 ——
+     soft 是"主色掺画布"的暗洗（图标底/标签底），tint 用主题实底（不再白），
+     ink 是"主色掺白"的亮字。probe28 抓过流萤 4.05<4.5 的教训：
+     深色画布上沿用白派生 tint + 深色字，两头都不 readable。 */
+  const dk = CUR && CUR.mode === 'dark';
+  const SOL = (CUR && CUR.solid) || '#FFFFFF';
+  return '--cb:' + ACC[0]
   + ';--cb-bar:' + rgba(ACC[0], .55)
-  + ';--cb-soft:' + tint(ACC[0], .88)
-  + ';--cb-tint:' + rgba('#FFFFFF', glassA(glassG(), .32))
-  + ';--cb-brd:'  + rgba(ACC[0], .20)
-  + ';--cb-ink:'  + darken(ACC[0], .52) + ';';
+  + ';--cb-soft:' + (dk ? mixc(ACC[0], CUR.paper, .80) : tint(ACC[0], .88))
+  + ';--cb-tint:' + rgba(SOL, glassA(glassG(), .32))
+  + ';--cb-brd:'  + rgba(ACC[0], dk ? .30 : .20)
+  + ';--cb-ink:'  + (dk ? mixc(ACC[0], '#FFFFFF', .52) : darken(ACC[0], .52)) + ';';
+};
 /* ↑ .62 → .52（2026-09-22）。
    --cb-ink 是**字色**：压在 --cb-soft（主色的淡彩底）或纸面上的小字
    （标签、单位、编号、面包屑）。加了"秋香"那套（主色 #d9b611 芥末黄）
@@ -184,6 +217,10 @@ function applyTheme(id){
   CUR = THEMES.find(t => t.id === id) || THEMES[0];
   ACC = CUR.hues.slice();
   const r = document.documentElement.style, t = CUR;
+  /* 深色模式（R11）：solid 是卡片实底，所有半透明面从它派生 ——
+     旧版写死 #FFFFFF，深色主题会顶着一身白底出现。 */
+  const dk = t.mode === 'dark';
+  const SOL = t.solid || '#FFFFFF';
   const set = (k, v) => r.setProperty(k, v);
   set('--paper', t.paper); set('--paper-2', t.paper2); set('--paper-3', t.paper3);
   /* 四个半透明面 + 模糊，全部由 GLASS 派生。
@@ -192,17 +229,17 @@ function applyTheme(id){
   const g = glassG();
   set('--panel-bg', rgba(t.paper2, g));
   set('--side-bg',  rgba(t.side,    glassA(g,  .14)));
-  set('--surf',     rgba('#FFFFFF', glassA(g, -.04)));
-  set('--surf-2',   rgba('#FFFFFF', glassA(g,  .32)));
+  set('--surf',     rgba(SOL,       glassA(g, -.04)));
+  set('--surf-2',   rgba(SOL,       glassA(g,  .32)));
   set('--surf-solid', rgba(t.paper2, glassA(g, .40)));
   /* 卡片面（2026-09-22）。卡片原来一律写死 #fff —— 滑杆对它们**完全无效**，
      用户看到的正是"面板在透，卡片还是一块块实心板"。
      档差 .38 让它始终比面板底高一档：卡片仍然浮在面板之上，只是跟着一起透。 */
-  set('--card',     rgba('#FFFFFF', glassA(g,  .38)));
+  set('--card',     rgba(SOL,       glassA(g,  .38)));
   /* 弹层（配色弹层 / 表单浮层）比卡片再实一点：它压在所有内容之上，
      透太多会跟背后的正文糊在一起。取 .33，正好落在原来写死的
      .90（.tpop）与 .97（.mp-card）之间，两处的观感都只差三四个百分点。 */
-  set('--pop',      rgba('#FFFFFF', glassA(g,  .33)));
+  set('--pop',      rgba(SOL,       glassA(g,  .33)));
   /* 纸面本身也参与。--paper-3 是"凹陷面"的底 —— 代码块、说明条、分段控件
      轨道、芯片底、状态徽标，全站 39 处。它不参与的话，面板调到很透以后，
      页面上会浮着一块块不透明的补丁，比不调还难看。一处改掉，全部生效。 */
@@ -211,26 +248,48 @@ function applyTheme(id){
      反过来面板越实，模糊纯属白花钱（backdrop-filter 是唤出时最贵的一步）。 */
   set('--blur-panel', Math.round(Math.max(18, Math.min(64, 42 + (60 - GLASS) * .45))) + 'px');
   set('--ink-1', t.ink1); set('--ink-2', t.ink2); set('--ink-3', t.ink3); set('--ink-4', t.ink4);
-  set('--line', rgba(t.ink1, .10)); set('--line-2', rgba(t.ink1, .18)); set('--brd', rgba('#FFFFFF', .64));
+  /* --brd 是面板边缘那道"受光的发丝线"：浅色下白 .64，深色下白 .10 ——
+     参考稿的深色面板同样留着一条比面亮一点的 1px 边，只是弱得多。 */
+  set('--line', rgba(t.ink1, .10)); set('--line-2', rgba(t.ink1, .18));
+  set('--brd', dk ? rgba('#FFFFFF', .10) : rgba('#FFFFFF', .64));
   /* 辅助色不再是"另外三个色相"。
      原来 a2/a3/a4 取色轮上另外三个位置，于是页头插画（文件夹那一张的三个
      文件夹分别是 --cb / --a3 / --a2）本身就是三种颜色 —— 插画反倒成了一屏
      里最花的地方。现在 a2/a4 走中性灰、a3 走主色的浅调，插画整体呈现
-     "主色 + 灰阶"，跟界面其它部分同一个调子。 */
+     "主色 + 灰阶"，跟界面其它部分同一个调子。
+     深色模式（R11）：a2/a4 的"中性灰"要从浅墨往白里掺（墨阶反置），
+     a3 的浅调同理；a1-soft/a1-d 不再往白/黑两头像，改走 mixc ——
+     soft 是"主色掺画布"的暗洗（芯片底），d 是"主色掺白"的亮字，
+     深色下 mark/选中芯片/告警字才 readable。 */
   const H = t.hues;
   set('--a1', H[0]);
-  set('--a2', tint(t.ink1, .66));
-  set('--a3', tint(H[0], .48));
-  set('--a4', tint(t.ink1, .78));
-  set('--a1-d', darken(H[0], .66)); set('--a1-soft', tint(H[0], .84)); set('--a1-brd', rgba(H[0], .30));
+  set('--a2', dk ? mixc(t.ink1, '#FFFFFF', .60) : tint(t.ink1, .66));
+  set('--a3', dk ? mixc(H[0], t.paper, .52) : tint(H[0], .48));
+  set('--a4', dk ? mixc(t.ink1, '#FFFFFF', .74) : tint(t.ink1, .78));
+  set('--a1-d', dk ? mixc(H[0], '#FFFFFF', .45) : darken(H[0], .66));
+  set('--a1-soft', dk ? mixc(H[0], t.paper, .82) : tint(H[0], .84));
+  set('--a1-brd', rgba(H[0], dk ? .45 : .30));
   set('--veil', rgba(t.paper, .48));
   /* 光斑：降到 .44/.36 —— 原本 .95/.90 的四团彩色几乎不透明地铺满整屏，
      是"整体太亮"的最大来源。 */
   set('--g1', rgba(t.glow[0], .44)); set('--g2', rgba(t.glow[1], .44));
   set('--g3', rgba(t.glow[2], .36)); set('--g4', rgba(t.glow[3], .36));
-  set('--sh-panel', '0 34px 90px -30px ' + rgba(t.ink1,.30) + ',0 4px 12px -5px ' + rgba(t.ink1,.10) + ',inset 0 1px 0 ' + rgba('#FFFFFF',.92));
-  set('--sh-card', '0 2px 8px -3px ' + rgba(t.ink1,.12));
-  set('--sh-lift', '0 18px 34px -16px ' + rgba(t.ink1,.30));
+  /* 阴影（R11）：深色下换纯黑 —— 黑影才是深色 UI 的正确阴影，
+     浅字墨（接近白）做阴影会变成一团白雾。 */
+  const SHB = dk ? '#000000' : t.ink1;
+  set('--sh-panel', '0 34px 90px -30px ' + rgba(SHB, dk ? .55 : .30) + ',0 4px 12px -5px ' + rgba(SHB, dk ? .22 : .10) + ',inset 0 1px 0 ' + rgba(SOL, .92));
+  set('--sh-card', '0 2px 8px -3px ' + rgba(SHB, dk ? .30 : .12));
+  set('--sh-lift', '0 18px 34px -16px ' + rgba(SHB, dk ? .55 : .30));
+  /* ---- 结构令牌（R11）----
+     这些位置原来在 CSS 里写死白色或晴墨，深色主题会当场穿帮。
+     全部改为运行时注入；:root 里保留晴值兜底（JS 启动前那第一帧）。 */
+  set('--solid', SOL);
+  set('--dock-bg', rgba(SOL, .72)); set('--dock-brd', rgba(SOL, .90));
+  set('--pop-brd', dk ? rgba('#FFFFFF', .12) : rgba('#FFFFFF', .95));
+  set('--wash', rgba(t.ink1, .09));
+  set('--scrim', dk ? 'rgba(0,0,0,.30)' : rgba(t.ink1, .07));
+  set('--sb1', rgba(t.ink1, .18)); set('--sb2', rgba(t.ink1, .32));
+  set('--toast-bg', rgba(t.ink1, .93)); set('--toast-ink', t.paper);
 }
 
 /* 夜间自动水墨（R9）：nightAuto 开着时，19:00–06:00 用「水墨」，
@@ -240,7 +299,11 @@ function applyTheme(id){
 function effThemeId(){
   if (!state.settings.nightAuto) return state.settings.theme;
   const h = new Date().getHours();
-  return (h >= 19 || h < 6) ? 'inkwash' : state.settings.theme;
+  if (h < 19 && h >= 6) return state.settings.theme;
+  /* 夜间接管的对象是**浅色**主题 —— 你已经在用曜夜/流萤，夜里没有
+     "再换深一点"这回事，保持现状就是对的选择。水墨只负责把浅色换下来。 */
+  const cur = THEMES.find(t => t.id === state.settings.theme);
+  return (cur && cur.mode === 'dark') ? state.settings.theme : 'inkwash';
 }
 
 /* 由分类名派生颜色 —— 在整套色轮里轮转，保证同一分类永远同色 */

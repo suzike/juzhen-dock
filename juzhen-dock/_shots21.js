@@ -54,7 +54,9 @@ const SHOTS = [
   { name: '06_search',   page: 'today',    theme: 'sunny', drive: driveSearch },
   { name: '07_settings', page: 'settings', theme: 'sunny', drive: '' },
   /* 换一套主色再拍一次同一个页面：README 里用来说明「一套主题只变三样」 */
-  { name: '08_theme_blue', page: 'folders', theme: 'blue', drive: '' }
+  { name: '08_theme_blue', page: 'folders', theme: 'blue', drive: '' },
+  /* R11 曜黑家族：深色模式整体形态（画布/面板/卡片/dock 全深） */
+  { name: '13_theme_dark', page: 'today', theme: 'obsidian', drive: '' }
 ];
 
 SHOTS.forEach(s => {
