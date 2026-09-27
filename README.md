@@ -1,6 +1,6 @@
 # 聚珍 · Juzhen Dock
 
-![version](https://img.shields.io/badge/version-0.7.0-blue)
+![version](https://img.shields.io/badge/version-0.7.1-blue)
 ![platform](https://img.shields.io/badge/platform-Windows-lightgrey)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -13,7 +13,7 @@
 <p align="center"><sub>今日概览 —— 左边是桌面，右边是面板。待办、最近使用、场景，一屏看全</sub></p>
 
 > **直接下载桌面版**（免安装、免 Node 环境）：
-> [聚珍 v0.7.0 便携版 · Windows x64](https://github.com/suzike/juzhen-dock/releases/latest)
+> [聚珍 v0.7.1 便携版 · Windows x64](https://github.com/suzike/juzhen-dock/releases/latest)
 >
 > 首次启动若被 SmartScreen 拦下，选「更多信息 → 仍要运行」。源码全部公开，可自行构建复核。
 
