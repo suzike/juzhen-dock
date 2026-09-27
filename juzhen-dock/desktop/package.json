@@ -1,7 +1,7 @@
 {
   "name": "juzhen-dock",
   "productName": "聚珍",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "聚珍 · 桌面入口，一触即达",
   "main": "main.js",
   "author": "juzhen",
