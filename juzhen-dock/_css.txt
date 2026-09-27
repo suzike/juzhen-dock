@@ -1179,6 +1179,13 @@ table.sheet td.num{text-align:right}
 .md code{font-family:var(--mono);font-size:var(--fs-meta);background:var(--cb-soft);border-radius:5px;padding:2px 5px;color:var(--cb-ink)}
 .md pre{background:var(--paper-3);border-radius:var(--r-l);padding:11px;overflow:auto;margin:0 0 var(--sp-3)}
 .md pre code{background:none;padding:0;color:var(--ink-2);line-height:1.75;display:block;white-space:pre}
+/* 代码块复制按钮（R14）：悬停代码块才出现 —— 常驻会打断读代码的眼睛。 */
+.md pre{position:relative}
+.md .md-cp{position:absolute;top:7px;right:7px;display:none;align-items:center;justify-content:center;
+  width:26px;height:26px;border-radius:var(--r-s);background:var(--card);color:var(--ink-3);
+  box-shadow:var(--sh-1),inset 0 0 0 1px var(--line)}
+.md pre:hover .md-cp{display:inline-flex}
+.md .md-cp:hover{color:var(--cb-ink);background:var(--cb-soft)}
 .md strong{color:var(--ink-1);font-weight:var(--fw-bold)}
 .md blockquote{margin:0 0 var(--sp-3);padding:3px 0 3px var(--sp-3);border-left:3px solid var(--cb);color:var(--ink-3)}
 .txt{font-family:var(--mono);font-size:var(--fs-meta);line-height:1.8;color:var(--ink-2);background:var(--paper-3);

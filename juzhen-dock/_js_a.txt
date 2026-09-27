@@ -290,6 +290,9 @@ function applyTheme(id){
   set('--scrim', dk ? 'rgba(0,0,0,.30)' : rgba(t.ink1, .07));
   set('--sb1', rgba(t.ink1, .18)); set('--sb2', rgba(t.ink1, .32));
   set('--toast-bg', rgba(t.ink1, .93)); set('--toast-ink', t.paper);
+  /* 原生控件的深浅（R12）：下拉、输入框、滚动条的原生部件跟 color-scheme 走 ——
+     深色主题里弹出的白色原生下拉是最后一处"藏不住的亮块"。 */
+  set('color-scheme', dk ? 'dark' : 'light');
 }
 
 /* 夜间自动水墨（R9）：nightAuto 开着时，19:00–06:00 用「水墨」，
@@ -297,6 +300,12 @@ function applyTheme(id){
    applyTheme(你选的主题) 立刻回来。boot 与边界定时器都走这一个口径，
    "几点算夜里"只许有这一份答案。 */
 function effThemeId(){
+  /* 跟随系统（R12）：优先级最高 —— 系统深浅是最诚实的信号，
+     用户手动改系统主题时这里实时跟着变（监听在 boot 里）。 */
+  if (state.settings.followSystem){
+    const mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+    return (mq && mq.matches) ? 'obsidian' : state.settings.theme;
+  }
   if (!state.settings.nightAuto) return state.settings.theme;
   const h = new Date().getHours();
   if (h < 19 && h >= 6) return state.settings.theme;

@@ -21,7 +21,7 @@ const state = { open:false, pinned:false, edge:'right', delay:250, motion:'stand
                 对只用 cmd 或 WSL 的人是每天重复一次的多余操作。 */
              termProfile:'powershell',
              fsBlock:true, pinned:false, boardWatch:false, copyMode:false, onboardDone:false,
-             nightAuto:false,
+             nightAuto:false, followSystem:false,
              /* 夜间自动水墨（R9）：默认关 —— 自动改外观是有代价的
                 （"我没动过它怎么自己变了"），必须让用户自己请进来。 */
              /* AI 速问的模型配置。默认指向 DeepSeek —— 选它的理由很实际：
@@ -254,7 +254,12 @@ function buildSettings(){
         /* 夜间自动水墨（R9）：开关跟着主题卡走 —— "几点换什么"本来
            就是配色偏好的一部分，单独开一张卡反而没人找得到。 */
         + row('夜间自动换水墨', '每天 19:00–06:00 自动使用「水墨」，白天用你选的主题；关掉立即恢复',
-              swCtl('nightAuto', st.nightAuto, '夜间自动换水墨')),
+              swCtl('nightAuto', st.nightAuto, '夜间自动换水墨'))
+        /* 跟随系统（R12）：优先级高于夜间自动 —— 系统深浅是最诚实的信号，
+           且系统切换是即时的，不用等到 19 点。两者互斥，开一个自动关另一个。 */
+        + row('主题跟随系统深浅', '系统深色时用「曜夜」、浅色时用你选的主题；'
+           + '开启会自动关闭「夜间自动换水墨」（两者只留一个，免得打架）',
+              swCtl('followSystem', st.followSystem, '主题跟随系统深浅')),
         { icon:'palette', one:true, hideN:true })
     /* 透明度紧跟在配色主题后面，但**自成一张卡** —— 它跟主题是两件事
        （主题管色，这里管材质），混在一张卡里就没人找得到。 */
@@ -643,7 +648,7 @@ function renderMd(src){
   const inl = s => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   let out = '', code = false, ul = false;
   String(src).split('\n').forEach(ln => {
-    if (/^```/.test(ln)){ if (code){ out += '</code></pre>'; code = false; } else { out += '<pre><code>'; code = true; } return; }
+    if (/^```/.test(ln)){ if (code){ out += '</code></pre>'; code = false; } else { out += '<pre class="md-pre"><button class="md-cp" data-act="md-copy" title="复制这段代码">' + IC('copy', 12) + '</button><code>'; code = true; } return; }
     if (code){ out += esc(ln) + '\n'; return; }
     if (/^#{1,2}\s/.test(ln)){
       const lv = ln.indexOf('##') === 0 ? 2 : 1;
@@ -799,6 +804,23 @@ function srow(o, i){
    不这么做的话，搜「PMV」时一条正文里顺带提了一句 PMV 的速记，会压过标题
    就叫「PMV 计算核心式」的片段。total 是命中总数（不受每源上限影响），
    用于结果页的正确计数与"还有多少条没列出来"的提示。 */
+/* 动作层（R13）：搜索框不只找"东西"，还找"要做的事"。
+   每条动作都复用 handleAct 已有的分支（cmd-run 用 shim 元素转发）——
+   命令面板不新造执行器，只是把入口搬到离手最近的地方：
+   Ctrl K → 打两个字 → Enter。kw 是补充关键词，让"备份"也能搜到导出。 */
+const CMD_ACTIONS = [
+  { act:'todo-new',     nm:'新增待办',     hs:'表单里写清标签与时间',       icon:'check',    kw:'待办 添加 新建 todo' },
+  { act:'snip-new',     nm:'新增片段',     hs:'收一段常用的公式或命令',     icon:'code',     kw:'片段 snippet 添加 代码' },
+  { act:'folder-new',   nm:'登记文件夹',   hs:'把常去的目录搬进面板',       icon:'folder',   kw:'文件夹 folder 添加 目录' },
+  { act:'link-new',     nm:'登记网址',     hs:'把常去的平台搬进面板',       icon:'globe',    kw:'网址 link 添加 平台' },
+  { act:'go', id:'scene', nm:'切换场景',     hs:'一次点击换整组工作环境',     icon:'route',    kw:'场景 scene 切换 环境' },
+  { act:'go', id:'calc',  nm:'打开工程换算', hs:'单位 · 湿空气 · PMV 速算',   icon:'calc',     kw:'换算 calc 单位 湿空气 pmv' },
+  { act:'go', id:'term',  nm:'打开终端',     hs:'真 ConPTY 会话，多标签',     icon:'terminal', kw:'终端 terminal 命令 shell' },
+  { act:'store-export', nm:'导出存档',     hs:'全部数据存成一份 JSON 备份', icon:'tray',     kw:'导出 备份 存档 json export' },
+  { act:'cmd-theme',    nm:'换个配色主题', hs:'含两套曜黑深色（曜夜 / 流萤）', icon:'palette', kw:'主题 配色 深色 暗色 曜夜 流萤 theme dark' }
+];
+const CMD_FIND = a => a.act + (a.id ? ':' + a.id : '');
+
 function searchGroups(raw){
   const q = qq(raw).trim();
   if (!q) return [];
@@ -821,6 +843,12 @@ function searchGroups(raw){
     G.push({ name:name, icon:icon, total:hits.length, rows:hits.slice(0, n).map(h => h.row) });
   };
 
+  /* 动作组放最前（R13）：命令面板的心智模型是"我现在能做什么"，
+     动作天然排在东西前面。 */
+  add('动作', 'sparkle', scan(CMD_ACTIONS,
+    a => a.nm, a => a.kw,
+    a => ({ row:' data-act="cmd-run" data-cmd="' + CMD_FIND(a) + '"',
+            c:ACC[0], ic:a.icon, nm:'⚡ ' + a.nm, hs:a.hs, tg:'执行' })), 5);
   add('板块', 'columns', scan(PAGES,
     p => p.name, p => p.title + ' ' + p.sub + ' ' + p.group,
     p => ({ row:' data-act="go" data-id="' + p.id + '"', c:pageColor(p), ic:p.icon,
@@ -1730,13 +1758,36 @@ function setSetting(key, val){
   else if (key === 'nightAuto'){
     /* 关掉的瞬间就回到用户选的主题 —— "关开关"这个动作本身就是一次
        明确的主题决定，不该等到下一个整点。 */
-    if (!val && CUR.id !== state.settings.theme){
-      applyTheme(state.settings.theme);
+    if (!val && CUR.id !== effThemeId()){
+      applyTheme(effThemeId());
       invalidatePages(state.page);
       renderPage(state.page, true);
     }
+    if (val && state.settings.followSystem){
+      /* 互斥（R12）：夜间自动与跟随系统都是"自动换主题"，同开必然打架。
+         开夜间自动 = 明确选了"按钟点"这条路，跟随系统让位。 */
+      state.settings.followSystem = false;
+      saveSettings();
+      toast('已开启夜间自动水墨 · 「跟随系统深浅」已自动关闭');
+      if (state.page === 'settings') renderPage('settings', true);
+      return;
+    }
     toast(val ? '夜间自动水墨已开启 · 19:00–06:00 自动换上「水墨」'
               : '夜间自动水墨已关闭 · 已回到你选的主题');
+  }
+  else if (key === 'followSystem'){
+    /* 互斥的另一头（R12）：开跟随系统就关夜间自动。关掉的瞬间立即按
+       系统深浅落到该在的主题 —— 开关本身就是一次主题决定。 */
+    if (val && state.settings.nightAuto){
+      state.settings.nightAuto = false;
+      saveSettings();
+    }
+    applyTheme(effThemeId());
+    invalidatePages(state.page);
+    renderPage(state.page, true);
+    const dk = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    toast(val ? ('跟随系统已开启 · 当前系统' + (dk ? '深色，已换上「曜夜」' : '浅色，用你选的主题'))
+              : '跟随系统已关闭 · 已回到你选的主题');
   }
   else if (key === 'boardWatch'){
     /* 桌面版是真监听，开关要真的把轮询开起来/停掉 */
@@ -3580,6 +3631,27 @@ function handleAct(el){
     LS.drop(LS_QHIST);
     qHistRender();
     toast('搜索历史已清空');
+  } else if (act === 'md-copy'){
+    /* 代码块一键复制（R14）：按钮长在代码块右上角，复制时读块的纯文本 ——
+       markdown 源码里的转义不该进剪切板。 */
+    const pre = el.closest('pre');
+    if (!pre) return;
+    doCopy(pre.textContent.replace(/\n$/, ''), '代码');
+  } else if (act === 'cmd-run'){
+    /* 动作层（R13）：用 shim 元素转发给 handleAct 既有分支 ——
+       命令面板不新造执行器，动作与按钮永远同一条执行路径。 */
+    const key = String(el.dataset.cmd || '');
+    const a = CMD_ACTIONS.find(x => CMD_FIND(x) === key);
+    if (!a) return;
+    if (a.act === 'cmd-theme'){
+      /* 主题按钮是独立监听（btnTheme，非 data-act）——替用户点它 */
+      if ($('btnTheme')) $('btnTheme').click();
+      return;
+    }
+    const shim = document.createElement('div');
+    shim.dataset.act = a.act;
+    if (a.id) shim.dataset.id = a.id;
+    handleAct(shim);
   } else if (act === 'ask-send'){
     sendAsk();
   } else if (act === 'ask-new'){
@@ -5177,6 +5249,23 @@ function bindDesktop(){
         toast(id === 'inkwash' ? '夜间模式 · 已自动换上「水墨」' : '天亮了 · 换回你选的主题');
       }
     }, 30 * 1000);
+    /* 跟随系统（R12）：系统深浅一变就换 —— 不轮询，matchMedia 是事件驱动的。
+       只有 followSystem 开着且结果真的变了才动主题。 */
+    if (window.matchMedia){
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      const onSysSwing = () => {
+        if (!state.settings.followSystem) return;
+        const id = effThemeId();
+        if (CUR && id !== CUR.id){
+          applyTheme(id);
+          invalidatePages(state.page);
+          renderPage(state.page, true);
+          toast(mq.matches ? '系统已切到深色 · 换上「曜夜」' : '系统已切到浅色 · 换回你选的主题');
+        }
+      };
+      if (mq.addEventListener) mq.addEventListener('change', onSysSwing);
+      else if (mq.addListener) mq.addListener(onSysSwing);
+    }
     applySettings();
     state.pinned = !!state.settings.pinned;   /* 恢复上次的盯住状态 */
     injectStaticIcons();
